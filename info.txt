@@ -1,0 +1,47 @@
+
+TODO:
+-> cron job-> delete token from db after the token expires
+-> password reset
+
+
+IN PROGRESS:
+-> Routes for login with facebook and google
+
+
+COMPLETED: {
+    signup 
+    -> local
+    -> email, password
+    -> zod validate 
+    -> add user to db
+    -> generate verification token with token expire date 
+    -> send verification email 
+    -> jwt token
+
+
+    resend logic
+    -> email
+    -> find by email
+    -> block resend email if within block period/time
+    -> generate token and token expire 
+    -> if token resend count > 3 wait for 10 minutes // set block resend window to 10 min
+    -> resend count +1
+    -> send verification token via email (nodemailer)
+
+
+    verify token 
+    -> token = req.body
+    -> find user by token 
+    -> check if user exists or not 
+    -> check if the token is valid or not 
+    -> set isvalid to true
+    -> set null-> token , token expires, block resend window, resend count
+    -> save db 
+    -> login with google
+    -> login with facebook 
+}
+
+
+
+
+
