@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm"
 
 
 enum AuthProvider {
@@ -11,6 +11,9 @@ enum AuthProvider {
 export class User {
     @PrimaryGeneratedColumn()
     id: number;
+
+    @Column({ unique: true, nullable: true })
+    username: string;
 
     @Column({ unique: true, nullable: true })
     email: string;
@@ -29,9 +32,9 @@ export class User {
     provider: AuthProvider;
 
     @Column({ default: false })
-    isVerified: Boolean
+    isVerified: boolean
 
-    @Column()
+    @Column({ nullable: true })
     password?: string
 
     @Column({ nullable: true })
@@ -46,6 +49,15 @@ export class User {
     @Column({ nullable: true })
     resendBlockUntil?: Date
 
-    @Column()
+    @Column({ nullable: true })
+    resetToken?: string
+
+    @Column({ nullable: true })
+    resetTokenExpire?: Date
+
+    @CreateDateColumn()
     createdAt: Date
+
+    @UpdateDateColumn()
+    updatedAt: Date;
 }

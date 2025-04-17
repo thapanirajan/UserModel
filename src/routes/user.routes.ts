@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { validateSignup } from "../utils/zod.utils";
-import { getUsers, login, sendVerificationToken, signup, verifyToken } from "../controllers/user.controller";
+import { validateLogin, validateSignup } from "../utils/zod.utils";
+import { forgotPassword, getUserById, getUsers, login, resetPassword, sendVerificationToken, signup, updateUser, verifyToken } from "../controllers/user.controller";
 import passport from "passport";
 
 const userRouter = Router()
@@ -14,7 +14,7 @@ userRouter.post("/verify/resend", sendVerificationToken);
 userRouter.post("/verify", verifyToken)
 
 
-userRouter.post("/login", validateSignup, login)
+userRouter.post("/login", validateLogin, login)
 
 
 // Google callback route
@@ -39,5 +39,17 @@ userRouter.get("/facebook/callback", passport.authenticate("facebook", {
 }), (req, res) => {
     res.send("Login succesfull")
 })
+
+// password reset 
+userRouter.post("/forgot/password", forgotPassword);
+
+userRouter.post("/reset/password", resetPassword);
+
+// Get user by id
+userRouter.get("/user/:id", getUserById);
+
+// update user
+userRouter.put("/user/:id", updateUser);
+
 
 export default userRouter;

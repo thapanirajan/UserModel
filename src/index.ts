@@ -8,6 +8,7 @@ import session from "express-session";
 import AppDataSource from "./config/db.config";
 import userRouter from "./routes/user.routes";
 import "./config/passport.config"
+import { tokenCleanUp } from "./utils/cronjob.utils";
 
 const app = express()
 
@@ -34,6 +35,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+tokenCleanUp()
 
 // routes
 app.use("/api/auth", userRouter);

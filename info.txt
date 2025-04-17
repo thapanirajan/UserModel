@@ -2,6 +2,7 @@
 TODO:
 -> cron job-> delete token from db after the token expires
 -> password reset
+-> email, profile management
 
 
 IN PROGRESS:

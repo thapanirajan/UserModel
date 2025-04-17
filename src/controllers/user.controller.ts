@@ -5,7 +5,8 @@ import { User } from "../models/user.model"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
-import { IAuthRequest, IVerificationToken, IVerifyToken } from '../interface/user.interface';
+import { IGetUserByIdParams, ILoginRequest, ISignupRequest, IUpdateUserParams, IVerificationToken, IVerifyToken, IUpdateUserBody, IResetPasswordRequest } from '../interface/user.interface';
+import { MoreThan } from "typeorm"
 
 const userDB = AppDataSource.getRepository(User);
 
@@ -26,8 +27,8 @@ export const getUsers = async (req: Request, res: Response) => {
     }
 }
 
-export const signup = async (req: Request<{}, {}, IAuthRequest>, res: Response): Promise<void> => {
-    const { email, password } = req.body;
+export const signup = async (req: Request<{}, {}, ISignupRequest>, res: Response): Promise<void> => {
+    const { username, email, password } = req.body;
     try {
         const exisingUser = await userDB.findOneBy({ email });
 
@@ -40,12 +41,15 @@ export const signup = async (req: Request<{}, {}, IAuthRequest>, res: Response):
 
         const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
 
+        const hashToken = await bcrypt.hash(verificationToken, 10);
+
         const expire = new Date(Date.now() + 2 * 60 * 1000); // 2 mins from now
 
         const user = userDB.create({
+            username,
             email,
             password: hashedPassword,
-            token: verificationToken,
+            token: hashToken,
             tokenExpire: expire,
             createdAt: new Date(),
             resendCount: 0,
@@ -56,7 +60,7 @@ export const signup = async (req: Request<{}, {}, IAuthRequest>, res: Response):
         await sendVerificationEmail(email, "Email verification", verificationToken);
 
 
-        const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "2h" })
+        const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: "2h" })
 
         res.cookie("token", token, {
             httpOnly: true,
@@ -75,12 +79,16 @@ export const signup = async (req: Request<{}, {}, IAuthRequest>, res: Response):
     }
 };
 
-export const login = async (req: Request<{}, {}, IAuthRequest>, res: Response): Promise<void> => {
+export const login = async (req: Request<{}, {}, ILoginRequest>, res: Response): Promise<void> => {
     const { email, password } = req.body;
     try {
-        const user = await userDB.findOneBy({ email })
+        const user = await userDB.findOne({
+            where: [
+                { email: email }, { username: email }
+            ]
+        })
         if (!user) {
-            res.status(401).json({ msg: "Invalid email or password" })
+            res.status(401).json({ msg: "Invalid username/email or password" })
             return;
         }
 
@@ -190,5 +198,118 @@ export const verifyToken = async (req: Request<{}, {}, IVerifyToken>, res: Respo
         console.log("Error verifying token ");
         console.log(error)
         res.status(500).json({ msg: "Server error ❌ ", error })
+    }
+}
+
+export const forgotPassword = async (req: Request<{}, {}, IVerificationToken>, res: Response): Promise<void> => {
+    try {
+
+        const { email } = req.body;
+
+        if (!email) {
+            res.status(400).json({ msg: "Email field cannot be empty" })
+        }
+        const user = await userDB.findOneBy({ email })
+
+        if (!user) {
+            res.status(404).json({ msg: "User not found" })
+            return;
+        }
+        const token = Math.floor(100000 + Math.random() * 900000).toString();
+
+        const tokenExpire = new Date(Date.now() + 2 * 60 * 1000); // 2 mins from now
+
+
+        user.resetToken = token;
+        user.resetTokenExpire = tokenExpire;
+
+        await userDB.save(user);
+
+        await sendVerificationEmail(user.email, "Reset Password", token);
+
+        res.status(200).json({ msg: "Reset token send" });
+
+    } catch (err) {
+        console.log("Error sending reset token for password reset", err);
+        res.status(500).json({ msg: "Internal server error" })
+    }
+}
+
+export const resetPassword = async (req: Request<IResetPasswordRequest>, res: Response): Promise<void> => {
+    try {
+        const { newPass, confirmPass, token } = req.body;
+        if (!newPass || !confirmPass || !token) {
+            res.status(400).json({ msg: "All fields are required" })
+            return;
+        }
+
+        const user = await userDB.findOne({
+            where: {
+                resetToken: token,
+                resetTokenExpire: MoreThan(new Date()),
+            }
+        })
+
+        if (!user) {
+            res.status(400).json({ message: "Invalid or expired token" });
+            return;
+        }
+
+        if (newPass !== confirmPass) {
+            res.status(400).json({ msg: "Password and confirm password must be the same." });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPass, 10);
+        user.password = hashedPassword;
+        user.resetToken = null;
+        user.resetTokenExpire = null;
+
+        await userDB.save(user);
+
+        res.status(200).json({ msg: "Password reset successfully" })
+    } catch (error) {
+        console.log("Error while password reset", error);
+        res.status(500).json({ msg: "Error while password reset" })
+    }
+}
+
+export const getUserById = async (req: Request<IGetUserByIdParams>, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const user = await userDB.findOneBy({ id: id });
+        if (!user) {
+            res.status(400).json({ msg: "User not found" })
+            return;
+        }
+        res.status(200).json({
+            success: true,
+            user
+        })
+    } catch (error) {
+        res.status(500).json({ message: "Server Error" });
+    }
+}
+
+export const updateUser = async (req: Request<IUpdateUserParams, {}, IUpdateUserBody>, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+
+        const user = await userDB.findOneBy({ id: id });
+
+        if (!user) {
+            res.status(400).json({ success: false, message: "User not found" });
+            return;
+        }
+
+        const updatedUser = await userDB.update(id, updateData);
+
+        console.log(updatedUser);
+
+        res.status(200).json({ msg: "Profile updated successfully" })
+
+    } catch (error) {
+        console.error("Update User Error:", error);
+        res.status(500).json({ success: false, message: "Failed to update user" });
     }
 }
