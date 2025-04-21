@@ -1,315 +1,398 @@
-
-import { Request, Response } from "express"
-import AppDataSource from "../config/db.config"
-import { User } from "../models/user.model"
-import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken"
+import { Request, Response } from "express";
+import AppDataSource from "../config/db.config";
+import { User } from "../models/user.model";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
 import { IGetUserByIdParams, ILoginRequest, ISignupRequest, IUpdateUserParams, IVerificationToken, IVerifyToken, IUpdateUserBody, IResetPasswordRequest } from '../interface/user.interface';
-import { MoreThan } from "typeorm"
+import { fetchAllUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, findUserByToken, getUserByIdService, handleVerificationResend, registerUser, setResetTokenForUser, updatePassword, updateUserAfterVerification, updateUserService, } from "../service/user.service";
 
+// Initialize repository for User model to interact with database
 const userDB = AppDataSource.getRepository(User);
 
-export const getUsers = async (req: Request, res: Response) => {
+
+// Get all users from the database
+export const getUsers = async (req: Request, res: Response): Promise<void> => {
     try {
-        const users = await userDB.find();
-        console.log(users)
-        res.status(200).json({
-            sucess: true,
-            data: users
-        })
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({
-            success: false,
-            msg: "Internal server error"
-        })
-    }
-}
-
-export const signup = async (req: Request<{}, {}, ISignupRequest>, res: Response): Promise<void> => {
-    const { username, email, password } = req.body;
-    try {
-        const exisingUser = await userDB.findOneBy({ email });
-
-        if (exisingUser) {
-            res.status(400).json({ message: "User already exists" })
-            return;
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
-
-        const hashToken = await bcrypt.hash(verificationToken, 10);
-
-        const expire = new Date(Date.now() + 2 * 60 * 1000); // 2 mins from now
-
-        const user = userDB.create({
-            username,
-            email,
-            password: hashedPassword,
-            token: hashToken,
-            tokenExpire: expire,
-            createdAt: new Date(),
-            resendCount: 0,
-        })
-        await userDB.save(user)
-        console.log(user)
-
-        await sendVerificationEmail(email, "Email verification", verificationToken);
-
-
-        const token = jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: "2h" })
-
-        res.cookie("token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 2 * 60 * 60 * 1000
-        })
+        // Fetch all users using service layer
+        const users = await fetchAllUser();
 
         res.status(200).json({
             success: true,
-            user: user
-        })
-
+            data: users
+        });
     } catch (error) {
-        console.log(error)
-        res.status(500).json({ message: "Server error" });
+
+        console.error('Get users error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Service temporarily unavailable"
+        });
     }
 };
 
+// Handle user registration
+export const signup = async (req: Request<{}, {}, ISignupRequest>, res: Response): Promise<void> => {
+    // Extract user details from request body
+    const { username, email, password } = req.body;
+    try {
+        // Register user using service layer, returns user and verification token
+        const { user, verificationToken } = await registerUser({ username, email, password });
+
+        // Send verification email to user
+        await sendVerificationEmail(email, "Email verification", verificationToken);
+
+        // Create JWT token for authentication
+        const token = jwt.sign(
+            { id: user.id, email: user.email, username: user.username },
+            process.env.JWT_SECRET as string,
+            { expiresIn: "2h" }
+        );
+
+        // Set JWT token in HTTP-only cookie
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: 'strict',
+            maxAge: 2 * 60 * 60 * 1000 // (2 hours)
+        });
+
+        res.status(201).json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email
+            }
+        });
+    } catch (error) {
+        // Log error and return service unavailable response
+        console.error('Signup error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Registration service temporarily unavailable"
+        });
+    }
+};
+
+// Handle user login
 export const login = async (req: Request<{}, {}, ILoginRequest>, res: Response): Promise<void> => {
+    // Extract login credentials from request body
     const { email, password } = req.body;
     try {
-        const user = await userDB.findOne({
-            where: [
-                { email: email }, { username: email }
-            ]
-        })
+        // Attempt to find user with provided credentials
+        const user = await findUserByEmailLogin(email);
+
+        // Check if user exists
         if (!user) {
-            res.status(401).json({ msg: "Invalid username/email or password" })
+            res.status(401).json({
+                success: false,
+                message: "User does not exists"
+            });
             return;
         }
 
+        // Verify password using bcrypt
         const isMatch = await bcrypt.compare(password, user.password);
-
         if (!isMatch) {
-            res.status(401).json({ message: "Invalid email or password" });
+            res.status(401).json({
+                success: false,
+                message: "Invalid credentials"
+            });
             return;
         }
 
+        // Create JWT token for authenticated user
         const token = jwt.sign(
             { id: user.id, email: user.email },
             process.env.JWT_SECRET as string,
             { expiresIn: "2h" }
         );
 
+        // Set JWT token in HTTP-only cookie
         res.cookie("token", token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            maxAge: 2 * 60 * 60 * 1000,
+            sameSite: 'strict',
+            maxAge: 2 * 60 * 60 * 1000
         });
 
         res.status(200).json({
-            message: "Login successful",
+            success: true,
             user: {
                 id: user.id,
-                email: user.email,
-            },
+                email: user.email
+            }
         });
     } catch (error) {
-        console.error("Login error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        // Log error and return service unavailable response
+        console.error('Login error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Authentication service temporarily unavailable"
+        });
     }
-}
+};
 
-// resend token and manage resend limit
+// Resend verification token to user
 export const sendVerificationToken = async (req: Request<{}, {}, IVerificationToken>, res: Response): Promise<void> => {
+    // Extract email from request body
     const { email } = req.body;
     try {
-        const user = await userDB.findOneBy({ email });
+        // Check if user exists and can resend verification
+        const user = await handleVerificationResend(email);
         if (!user) {
-            res.status(404).json({ msg: "User not found" })
+            res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
             return;
         }
 
-        // block resend if within block period
+        // Check if user is blocked from resending
         if (user.resendBlockUntil && user.resendBlockUntil > new Date()) {
-            res.status(400).json({
-                msg: `Too many attempts. Please try agian after ${user.resendBlockUntil.toLocaleTimeString()}`
-            })
+            res.status(429).json({
+                success: false,
+                message: `Too many verification attempts. Please try again after ${user.resendBlockUntil.toLocaleTimeString()}`
+            });
             return;
         }
 
-        // generate token
+        // Generate 6-digit verification token
         const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+        const expire = new Date(Date.now() + 2 * 60 * 1000);// 2 min
 
-        const expire = new Date(Date.now() + 2 * 60 * 1000); // 2 mins from now
-
+        // Implement resend limit logic
         if (user.resendCount >= 3) {
-            user.resendBlockUntil = new Date(Date.now() + 10 * 60 * 1000); // block for 10min
+            user.resendBlockUntil = new Date(Date.now() + 10 * 60 * 1000);
             user.resendCount = 0;
         }
 
-        user.token = verificationToken
-        user.tokenExpire = expire
+        // Update user with new token details
+        user.verificationCode = verificationToken;
+        user.verificationCodeExpire = expire;
         user.resendCount += 1;
 
-        await userDB.save(user)
+        // Save updated user to database
+        await userDB.save(user);
 
-        await sendVerificationEmail(user.email, "Email verifcation", user.token)// send verification mail
+        // Send verification email
+        await sendVerificationEmail(user.email, "Email verification", verificationToken);
 
-        res.status(200).json({ msg: "Verification token resent" })
-
+        res.status(202).json({
+            success: true,
+            message: "Verification token processing"
+        });
     } catch (error) {
-        console.log(error)
-        res.status(500).json({ message: "Error sending  verification email" });
+        console.error('Verification token error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Verification service temporarily unavailable"
+        });
     }
-}
+};
 
-// verify token
+// Verify email verification token
 export const verifyToken = async (req: Request<{}, {}, IVerifyToken>, res: Response): Promise<void> => {
+    // Extract token from request body
     const { token } = req.body;
     try {
-        const user = await userDB.findOneBy({ token })
-        if (!user || !user.token || !user.tokenExpire) {
-            res.status(400).json({ message: "Invalid or expired token" });
+        // Find user by verification token
+        const user = await findUserByToken(token);
+        if (!user || !user.verificationCode || !user.verificationCodeExpire) {
+            res.status(410).json({
+                success: false,
+                message: "Token no longer valid"
+            });
             return;
         }
 
-        if (user.token !== token || user.tokenExpire < new Date()) {
-            res.status(400).json({ message: "Token expired or invalid" });
+        // Validate token and its expiry
+        if (user.verificationCode !== token || user.verificationCodeExpire < new Date()) {
+            res.status(410).json({
+                success: false,
+                message: "Token no longer valid"
+            });
             return;
         }
 
-        user.token = null;
-        user.tokenExpire = null;
-        user.resendBlockUntil = null;
-        user.resendCount = null;
-        user.isVerified = true
+        // Update user verification status
+        await updateUserAfterVerification(user);
 
-        // save to db
-        await userDB.save(user);
-
-        res.status(200).json({ msg: "Token verified ✅ " })
-
-    } catch (error) {
-        console.log("Error verifying token ");
-        console.log(error)
-        res.status(500).json({ msg: "Server error ❌ ", error })
-    }
-}
-
-export const forgotPassword = async (req: Request<{}, {}, IVerificationToken>, res: Response): Promise<void> => {
-    try {
-
-        const { email } = req.body;
-
-        if (!email) {
-            res.status(400).json({ msg: "Email field cannot be empty" })
-        }
-        const user = await userDB.findOneBy({ email })
-
-        if (!user) {
-            res.status(404).json({ msg: "User not found" })
-            return;
-        }
-        const token = Math.floor(100000 + Math.random() * 900000).toString();
-
-        const tokenExpire = new Date(Date.now() + 2 * 60 * 1000); // 2 mins from now
-
-
-        user.resetToken = token;
-        user.resetTokenExpire = tokenExpire;
-
-        await userDB.save(user);
-
-        await sendVerificationEmail(user.email, "Reset Password", token);
-
-        res.status(200).json({ msg: "Reset token send" });
-
-    } catch (err) {
-        console.log("Error sending reset token for password reset", err);
-        res.status(500).json({ msg: "Internal server error" })
-    }
-}
-
-export const resetPassword = async (req: Request<IResetPasswordRequest>, res: Response): Promise<void> => {
-    try {
-        const { newPass, confirmPass, token } = req.body;
-        if (!newPass || !confirmPass || !token) {
-            res.status(400).json({ msg: "All fields are required" })
-            return;
-        }
-
-        const user = await userDB.findOne({
-            where: {
-                resetToken: token,
-                resetTokenExpire: MoreThan(new Date()),
-            }
-        })
-
-        if (!user) {
-            res.status(400).json({ message: "Invalid or expired token" });
-            return;
-        }
-
-        if (newPass !== confirmPass) {
-            res.status(400).json({ msg: "Password and confirm password must be the same." });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPass, 10);
-        user.password = hashedPassword;
-        user.resetToken = null;
-        user.resetTokenExpire = null;
-
-        await userDB.save(user);
-
-        res.status(200).json({ msg: "Password reset successfully" })
-    } catch (error) {
-        console.log("Error while password reset", error);
-        res.status(500).json({ msg: "Error while password reset" })
-    }
-}
-
-export const getUserById = async (req: Request<IGetUserByIdParams>, res: Response): Promise<void> => {
-    try {
-        const { id } = req.params;
-        const user = await userDB.findOneBy({ id: id });
-        if (!user) {
-            res.status(400).json({ msg: "User not found" })
-            return;
-        }
+        // Return success response
         res.status(200).json({
             success: true,
-            user
-        })
+            message: "Email verified successfully"
+        });
     } catch (error) {
-        res.status(500).json({ message: "Server Error" });
+        // Log error and return service unavailable response
+        console.error('Token verification error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Verification service temporarily unavailable"
+        });
     }
-}
+};
 
+// Handle password reset request
+export const forgotPassword = async (req: Request<{}, {}, IVerificationToken>, res: Response): Promise<void> => {
+    // Extract email from request body
+    const { email } = req.body;
+    try {
+        // Validate email 
+        if (!email) {
+            res.status(422).json({
+                success: false,
+                message: "Email is required"
+            });
+            return;
+        }
+
+        // Find user by email
+        const user = await findUserByEmail(email);
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+            return;
+        }
+
+        // Generate and set reset token
+        const token = await setResetTokenForUser(user);
+
+        // Send password reset email // 
+        await sendVerificationEmail(user.email, "Reset Password", token);
+
+        // Return accepted response for async processing
+        res.status(202).json({
+            success: true,
+            message: "Password reset request processing",
+
+        });
+    } catch (error) {
+        // Log error and return service unavailable response
+        console.error('Forgot password error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Password reset service temporarily unavailable"
+        });
+    }
+};
+
+// Handle password reset with token
+export const resetPassword = async (req: Request<{}, {}, IResetPasswordRequest>, res: Response): Promise<void> => {
+    // Extract password details and token from request body
+    const { newPass, confirmPass, token } = req.body;
+    try {
+        // Validate all required fields
+        if (!newPass || !confirmPass || !token) {
+            res.status(422).json({
+                success: false,
+                message: "All fields are required"
+            });
+            return;
+        }
+
+        // Verify passwords match
+        if (newPass !== confirmPass) {
+            res.status(422).json({
+                success: false,
+                message: "Passwords do not match"
+            });
+            return;
+        }
+
+        // Find user by reset token
+        const user = await findUserByResetToken(token);
+        if (!user) {
+            res.status(410).json({
+                success: false,
+                message: "Reset token no longer valid"
+            });
+            return;
+        }
+
+        // Update user password
+        await updatePassword(user, newPass);
+
+        // Return success response
+        res.status(200).json({
+            success: true,
+            message: "Password reset successfully"
+        });
+    } catch (error) {
+        // Log error and return service unavailable response
+        console.error('Reset password error:', error);
+        res.status(503).json({
+            success: false,
+            message: "Password reset service temporarily unavailable"
+        });
+    }
+};
+
+// Get user by ID
+export const getUserById = async (req: Request<IGetUserByIdParams>, res: Response): Promise<void> => {
+    try {
+        // Extract user ID from request parameters
+        const { id } = req.params;
+
+        // Fetch user using service layer
+        const user = await getUserByIdService(id);
+
+        // Check if user exists
+        if (!user) {
+            res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+            return;
+        }
+
+        // Return success response with user data
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (error) {
+        // Log error and return service unavailable response
+        console.error('Get user by ID error:', error);
+        res.status(503).json({
+            success: false,
+            message: "User service temporarily unavailable"
+        });
+    }
+};
+
+// Update user information
 export const updateUser = async (req: Request<IUpdateUserParams, {}, IUpdateUserBody>, res: Response): Promise<void> => {
     try {
+        // Extract user ID and update data from request
         const { id } = req.params;
         const updateData = req.body;
 
-        const user = await userDB.findOneBy({ id: id });
-
+        // Update user using service layer
+        const user = await updateUserService(id, updateData);
         if (!user) {
-            res.status(400).json({ success: false, message: "User not found" });
+            res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
             return;
         }
 
-        const updatedUser = await userDB.update(id, updateData);
-
-        console.log(updatedUser);
-
-        res.status(200).json({ msg: "Profile updated successfully" })
-
+        // Return success response with updated user data
+        res.status(200).json({
+            success: true,
+            message: "User updated successfully",
+            data: user
+        });
     } catch (error) {
-        console.error("Update User Error:", error);
-        res.status(500).json({ success: false, message: "Failed to update user" });
+        // Log error and return service unavailable response
+        console.error('Update user error:', error);
+        res.status(503).json({
+            success: false,
+            message: "User update service temporarily unavailable"
+        });
     }
-}
+};

@@ -1,4 +1,4 @@
-export const generateVerificationEmailHTML = (verificationLink, token) => {
+export const generateVerificationEmailHTML = (verificationLink: string, token: number) => {
     return `
         <!DOCTYPE html>
         <html lang="en">

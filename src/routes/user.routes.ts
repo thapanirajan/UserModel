@@ -5,15 +5,19 @@ import passport from "passport";
 
 const userRouter = Router()
 
+// Get all users
 userRouter.get("/user", getUsers)
 
+// Signup 
 userRouter.post("/signup", validateSignup, signup)
 
+// send verification token via email
 userRouter.post("/verify/resend", sendVerificationToken);
 
+// Verify token -> email verification 
 userRouter.post("/verify", verifyToken)
 
-
+// Login route
 userRouter.post("/login", validateLogin, login)
 
 
@@ -43,6 +47,7 @@ userRouter.get("/facebook/callback", passport.authenticate("facebook", {
 // password reset 
 userRouter.post("/forgot/password", forgotPassword);
 
+// reset password
 userRouter.post("/reset/password", resetPassword);
 
 // Get user by id

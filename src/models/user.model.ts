@@ -38,10 +38,10 @@ export class User {
     password?: string
 
     @Column({ nullable: true })
-    token?: string;
+    verificationCode?: string; // for email verification 
 
     @Column({ nullable: true })
-    tokenExpire?: Date
+    verificationCodeExpire?: Date // for email verification 
 
     @Column({ default: 0, nullable: true })
     resendCount: number
@@ -50,7 +50,7 @@ export class User {
     resendBlockUntil?: Date
 
     @Column({ nullable: true })
-    resetToken?: string
+    resetToken?: string // forgot password 
 
     @Column({ nullable: true })
     resetTokenExpire?: Date

@@ -27,8 +27,8 @@ export const validateSignup = (req: Request, res: Response, next: NextFunction) 
 }
 
 export const loginSchema = z.object({
-    loginInput: z.
-        string(), // email or username 
+    email: z.
+        string(), 
     password: z
         .string()
         .min(5, { message: "Password must be at least 5 characters long" })

@@ -3,6 +3,7 @@ import express from "express"
 import passport from 'passport';
 import { config } from "dotenv";
 import session from "express-session";
+import cookieParser from 'cookie-parser';
 
 
 import AppDataSource from "./config/db.config";
@@ -18,22 +19,10 @@ config()
 // middlewares
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(cookieParser());
 
 
-// Session setup
-app.use(session({
-    secret: process.env.SESSION_SECRET || "qwertyasfdghcvxb",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000 // 24 hrs
-    }
-}))
-// Initialize Passport and use session
 app.use(passport.initialize());
-app.use(passport.session());
 
 tokenCleanUp()
 
@@ -42,6 +31,7 @@ app.use("/api/auth", userRouter);
 
 const port = process.env.PORT || 5000
 
+// Initialize database connection
 AppDataSource.initialize()
     .then(() => {
         console.log("Databse connected");
@@ -52,5 +42,6 @@ AppDataSource.initialize()
 
     .catch((err) => {
         console.error("Error during Data source initialization", err)
+        process.exit(1); // Exit process on connection failure
     })
 

@@ -11,15 +11,15 @@ export const tokenCleanUp = () => {
         try {
             const expiredUsers = await userDB.find({
                 where: {
-                    tokenExpire: LessThan(new Date()),
-                    token: Not(null)
+                    verificationCodeExpire: LessThan(new Date()),
+                    verificationCode: Not(null)
                 }
             })
 
             if (expiredUsers.length > 0) {
                 for (const user of expiredUsers) {
-                    user.token = null;
-                    user.tokenExpire = null;
+                    user.verificationCode = null;
+                    user.verificationCodeExpire= null;
                     user.resendCount = null;
                     user.resendBlockUntil = null;
                     await userDB.save(user);

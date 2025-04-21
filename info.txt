@@ -1,13 +1,9 @@
 
 TODO:
--> cron job-> delete token from db after the token expires
--> password reset
--> email, profile management
-
+-> Add middleware to check if the user is logged in, is the user owner of the account. 
 
 IN PROGRESS:
--> Routes for login with facebook and google
-
+-> seperate db interaction code to service
 
 COMPLETED: {
     signup 
@@ -40,9 +36,23 @@ COMPLETED: {
     -> save db 
     -> login with google
     -> login with facebook 
+
+    -> cron job-> delete token from db after the token expires
+    -> password reset
+    -> email, profile management
+    -> Routes for login with facebook and google
 }
 
 
 
 
 
+// Recommendations for improving the codebase
+// Recommendation: Use custom error types for consistent error handling
+// Recommendation: Implement rate limiting for sensitive endpoints
+// Recommendation: Add input validation middleware (e.g., express-validator)
+// Recommendation: Use environment variables for sensitive configurations
+// Recommendation: Implement structured logging (e.g., winston)
+// Recommendation: Add API documentation using Swagger/OpenAPI
+// Recommendation: Implement request timeout handling
+// Recommendation: Add correlation IDs for request tracing
