@@ -1,8 +1,11 @@
 import { MoreThan } from 'typeorm';
 import AppDataSource from '../config/db.config';
-import { ISignupRequest, ILoginRequest, IUpdateUserBody } from '../interface/user.interface';
+import { ISignupRequest, IUpdateUserBody } from '../interface/user.interface';
 import { User } from '../models/user.model';
 import bcrypt from "bcryptjs"
+import { sendVerificationEmail } from '../utils/nodemailer.utils';
+import { emailResendLimiter } from "../config/rateLimiter.config";
+import crypto from "crypto";
 
 const userDB = AppDataSource.getRepository(User);
 
@@ -35,7 +38,6 @@ export const registerUser = async ({ username, email, password }: ISignupRequest
         verificationCode: hashToken,
         verificationCodeExpire: expire,
         createdAt: new Date(),
-        resendCount: 0,
     })
     await userDB.save(user)
 
@@ -54,8 +56,7 @@ export const findUserByEmailLogin = async (email: string) => {
 }
 
 export const handleVerificationResend = async (email: string) => {
-    const user = await userDB.findOneBy({ email });
-    return user;
+    return await userDB.findOne({ where: { email } });
 }
 
 export const findUserByToken = async (token: string) => {
@@ -65,8 +66,6 @@ export const findUserByToken = async (token: string) => {
 export const updateUserAfterVerification = async (user: User) => {
     user.verificationCode = null;
     user.verificationCodeExpire = null;
-    user.resendBlockUntil = null;
-    user.resendCount = null;
     user.isVerified = true;
 
     await userDB.save(user);
@@ -117,3 +116,39 @@ export const updateUserService = async (id: number, data: IUpdateUserBody): Prom
     return true;
 };
 
+export const resendVerificationToken = async (email: string): Promise<User> => {
+    const user = await handleVerificationResend(email);
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    // Check rate limit
+    try {
+        await emailResendLimiter.consume(email);
+    } catch (rateLimitError) {
+        const rateLimitInfo = await emailResendLimiter.get(email);
+        if (rateLimitInfo && rateLimitInfo.consumedPoints >= 3) {
+            const remainingSeconds = Math.ceil(rateLimitInfo.msBeforeNext / 1000);
+            const remainingMinutes = Math.ceil(remainingSeconds / 60);
+            throw new Error(`Too many verification attempts. Please try again in ${remainingMinutes} minute(s).`);
+        }
+        throw rateLimitError; // Unexpected error
+    }
+
+    // Generate 6-digit verification token
+    const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+    const expire = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
+
+    // Hash verification code
+    const hashedVerificationCode = crypto.createHash("sha256").update(verificationToken).digest("hex");
+
+    // Update user with new token details
+    user.verificationCode = hashedVerificationCode;
+    user.verificationCodeExpire = expire;
+    await userDB.save(user);
+
+    // Send verification email
+    await sendVerificationEmail(user.email, "Email verification", verificationToken);
+
+    return user;
+};

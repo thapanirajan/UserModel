@@ -20,8 +20,6 @@ export const tokenCleanUp = () => {
                 for (const user of expiredUsers) {
                     user.verificationCode = null;
                     user.verificationCodeExpire= null;
-                    user.resendCount = null;
-                    user.resendBlockUntil = null;
                     await userDB.save(user);
                     console.log(" Token 🗑️✅")
                 }

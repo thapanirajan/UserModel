@@ -43,16 +43,5 @@ COMPLETED: {
     -> Routes for login with facebook and google
 }
 
+// email change 
 
-
-
-
-// Recommendations for improving the codebase
-// Recommendation: Use custom error types for consistent error handling
-// Recommendation: Implement rate limiting for sensitive endpoints
-// Recommendation: Add input validation middleware (e.g., express-validator)
-// Recommendation: Use environment variables for sensitive configurations
-// Recommendation: Implement structured logging (e.g., winston)
-// Recommendation: Add API documentation using Swagger/OpenAPI
-// Recommendation: Implement request timeout handling
-// Recommendation: Add correlation IDs for request tracing

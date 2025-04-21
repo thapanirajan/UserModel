@@ -1,15 +1,9 @@
 import { Request, Response } from "express";
-import AppDataSource from "../config/db.config";
-import { User } from "../models/user.model";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
 import { IGetUserByIdParams, ILoginRequest, ISignupRequest, IUpdateUserParams, IVerificationToken, IVerifyToken, IUpdateUserBody, IResetPasswordRequest } from '../interface/user.interface';
-import { fetchAllUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, findUserByToken, getUserByIdService, handleVerificationResend, registerUser, setResetTokenForUser, updatePassword, updateUserAfterVerification, updateUserService, } from "../service/user.service";
-
-// Initialize repository for User model to interact with database
-const userDB = AppDataSource.getRepository(User);
-
+import { fetchAllUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, findUserByToken, getUserByIdService, registerUser, resendVerificationToken, setResetTokenForUser, updatePassword, updateUserAfterVerification, updateUserService, } from "../service/user.service";
 
 // Get all users from the database
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
@@ -139,56 +133,24 @@ export const sendVerificationToken = async (req: Request<{}, {}, IVerificationTo
     // Extract email from request body
     const { email } = req.body;
     try {
-        // Check if user exists and can resend verification
-        const user = await handleVerificationResend(email);
-        if (!user) {
-            res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
-            return;
-        }
-
-        // Check if user is blocked from resending
-        if (user.resendBlockUntil && user.resendBlockUntil > new Date()) {
-            res.status(429).json({
-                success: false,
-                message: `Too many verification attempts. Please try again after ${user.resendBlockUntil.toLocaleTimeString()}`
-            });
-            return;
-        }
-
-        // Generate 6-digit verification token
-        const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
-        const expire = new Date(Date.now() + 2 * 60 * 1000);// 2 min
-
-        // Implement resend limit logic
-        if (user.resendCount >= 3) {
-            user.resendBlockUntil = new Date(Date.now() + 10 * 60 * 1000);
-            user.resendCount = 0;
-        }
-
-        // Update user with new token details
-        user.verificationCode = verificationToken;
-        user.verificationCodeExpire = expire;
-        user.resendCount += 1;
-
-        // Save updated user to database
-        await userDB.save(user);
-
-        // Send verification email
-        await sendVerificationEmail(user.email, "Email verification", verificationToken);
-
+        await resendVerificationToken(email);
         res.status(202).json({
             success: true,
-            message: "Verification token processing"
-        });
+            message: "Verrification token processing"
+        })
+
     } catch (error) {
         console.error('Verification token error:', error);
-        res.status(503).json({
-            success: false,
-            message: "Verification service temporarily unavailable"
-        });
+        if (error.message === "User not found") {
+            res.status(404).json({ success: false, message: "User not found" });
+        } else if (error.message.includes("Too many verification attempts")) {
+            res.status(429).json({ success: false, message: error.message });
+        } else {
+            res.status(503).json({
+                success: false,
+                message: "Verification service temporarily unavailable",
+            });
+        }
     }
 };
 
