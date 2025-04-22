@@ -44,10 +44,16 @@ export class User {
     verificationCodeExpire?: Date // for email verification 
 
     @Column({ nullable: true })
-    resetToken?: string // forgot password 
+    resetToken?: string //for forgot password 
 
     @Column({ nullable: true })
-    resetTokenExpire?: Date
+    resetTokenExpire?: Date //for forgot password 
+
+    @Column({ default: 0, nullable: true })
+    resendCount: number; // Tracks number of resend attempts
+
+    @Column({ nullable: true })
+    resendBlockUntil?: Date; // Blocks resends until this time
 
     @CreateDateColumn()
     createdAt: Date

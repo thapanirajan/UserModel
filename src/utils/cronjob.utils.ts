@@ -15,11 +15,13 @@ export const tokenCleanUp = () => {
                     verificationCode: Not(null)
                 }
             })
-
+            console.log(expiredUsers);
             if (expiredUsers.length > 0) {
                 for (const user of expiredUsers) {
                     user.verificationCode = null;
-                    user.verificationCodeExpire= null;
+                    user.verificationCodeExpire = null;
+                    user.resendBlockUntil = null;
+                    user.resendCount = null;
                     await userDB.save(user);
                     console.log(" Token 🗑️✅")
                 }

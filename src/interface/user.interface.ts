@@ -16,6 +16,7 @@ export interface IVerificationToken {
 }
 
 export interface IVerifyToken {
+    email: string,
     token: string
 }
 
@@ -40,4 +41,12 @@ export interface IResetPasswordRequest {
 
 export interface IVerificationToken {
     email: string;
+}
+
+export interface IChangeEmailRequest {
+    newEmail: string;
+}
+
+export interface IVerifyEmailChangeRequest {
+    token: string;
 }

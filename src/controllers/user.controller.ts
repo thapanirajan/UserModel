@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
 import { IGetUserByIdParams, ILoginRequest, ISignupRequest, IUpdateUserParams, IVerificationToken, IVerifyToken, IUpdateUserBody, IResetPasswordRequest } from '../interface/user.interface';
-import { fetchAllUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, findUserByToken, getUserByIdService, registerUser, resendVerificationToken, setResetTokenForUser, updatePassword, updateUserAfterVerification, updateUserService, } from "../service/user.service";
+import { fetchAllUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, getUserByIdService, registerUser, resendVerificationToken, setResetTokenForUser, updatePassword, updateUserAfterVerification, updateUserService, } from "../service/user.service";
 
 // Get all users from the database
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
@@ -157,10 +157,10 @@ export const sendVerificationToken = async (req: Request<{}, {}, IVerificationTo
 // Verify email verification token
 export const verifyToken = async (req: Request<{}, {}, IVerifyToken>, res: Response): Promise<void> => {
     // Extract token from request body
-    const { token } = req.body;
+    const { email, token } = req.body;
     try {
         // Find user by verification token
-        const user = await findUserByToken(token);
+        const user = await findUserByEmail(email);
         if (!user || !user.verificationCode || !user.verificationCodeExpire) {
             res.status(410).json({
                 success: false,
@@ -169,11 +169,20 @@ export const verifyToken = async (req: Request<{}, {}, IVerifyToken>, res: Respo
             return;
         }
 
-        // Validate token and its expiry
-        if (user.verificationCode !== token || user.verificationCodeExpire < new Date()) {
+        // Check if token expired
+        if (user.verificationCodeExpire < new Date()) {
             res.status(410).json({
                 success: false,
-                message: "Token no longer valid"
+                message: "Token expired"
+            })
+            return
+        }
+        // Compare verification code using bcrypt
+        const isMatch = await bcrypt.compare(token, user.verificationCode);
+        if (!isMatch) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid token"
             });
             return;
         }

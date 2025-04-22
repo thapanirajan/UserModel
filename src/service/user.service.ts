@@ -4,8 +4,6 @@ import { ISignupRequest, IUpdateUserBody } from '../interface/user.interface';
 import { User } from '../models/user.model';
 import bcrypt from "bcryptjs"
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
-import { emailResendLimiter } from "../config/rateLimiter.config";
-import crypto from "crypto";
 
 const userDB = AppDataSource.getRepository(User);
 
@@ -37,7 +35,6 @@ export const registerUser = async ({ username, email, password }: ISignupRequest
         password: hashedPassword,
         verificationCode: hashToken,
         verificationCodeExpire: expire,
-        createdAt: new Date(),
     })
     await userDB.save(user)
 
@@ -59,13 +56,15 @@ export const handleVerificationResend = async (email: string) => {
     return await userDB.findOne({ where: { email } });
 }
 
-export const findUserByToken = async (token: string) => {
-    return await userDB.findOneBy({ verificationCode: token });
-}
+// export const findUserByToken = async (token: string) => {
+//     return await userDB.findOneBy({ verificationCode: token });
+// }
 
 export const updateUserAfterVerification = async (user: User) => {
     user.verificationCode = null;
     user.verificationCodeExpire = null;
+    user.resendCount = null;
+    user.resendBlockUntil = null;
     user.isVerified = true;
 
     await userDB.save(user);
@@ -116,35 +115,40 @@ export const updateUserService = async (id: number, data: IUpdateUserBody): Prom
     return true;
 };
 
+// Resend verification token
 export const resendVerificationToken = async (email: string): Promise<User> => {
     const user = await handleVerificationResend(email);
     if (!user) {
         throw new Error("User not found");
     }
 
-    // Check rate limit
-    try {
-        await emailResendLimiter.consume(email);
-    } catch (rateLimitError) {
-        const rateLimitInfo = await emailResendLimiter.get(email);
-        if (rateLimitInfo && rateLimitInfo.consumedPoints >= 3) {
-            const remainingSeconds = Math.ceil(rateLimitInfo.msBeforeNext / 1000);
-            const remainingMinutes = Math.ceil(remainingSeconds / 60);
-            throw new Error(`Too many verification attempts. Please try again in ${remainingMinutes} minute(s).`);
-        }
-        throw rateLimitError; // Unexpected error
+    // Check rate limit using resendCount and resendBlockUntil
+    const now = new Date();
+    if (user.resendBlockUntil && user.resendBlockUntil > now) {
+        const remainingSeconds = Math.ceil((user.resendBlockUntil.getTime() - now.getTime()) / 1000);
+        const remainingMinutes = Math.ceil(remainingSeconds / 60);
+        throw new Error(`Too many verification attempts. Please try again in ${remainingMinutes} minute(s).`);
+    }
+
+    if (user.resendCount >= 3) {
+        user.resendCount = 0; // Reset count after cooldown
+        user.resendBlockUntil = null;
     }
 
     // Generate 6-digit verification token
     const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
     const expire = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
-    // Hash verification code
-    const hashedVerificationCode = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    // Hash verification code using bcrypt
+    const hashedVerificationCode = await bcrypt.hash(verificationToken, 10); // salt rounds = 10
 
-    // Update user with new token details
+    // Update user with new token details and increment resendCount
     user.verificationCode = hashedVerificationCode;
     user.verificationCodeExpire = expire;
+    user.resendCount += 1;
+    if (user.resendCount >= 3) {
+        user.resendBlockUntil = new Date(Date.now() + 10 * 60 * 1000); // 10-minute cooldown
+    }
     await userDB.save(user);
 
     // Send verification email
@@ -152,3 +156,4 @@ export const resendVerificationToken = async (email: string): Promise<User> => {
 
     return user;
 };
+

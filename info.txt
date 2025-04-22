@@ -15,7 +15,6 @@ COMPLETED: {
     -> send verification email 
     -> jwt token
 
-
     resend logic
     -> email
     -> find by email
@@ -24,7 +23,6 @@ COMPLETED: {
     -> if token resend count > 3 wait for 10 minutes // set block resend window to 10 min
     -> resend count +1
     -> send verification token via email (nodemailer)
-
 
     verify token 
     -> token = req.body
@@ -44,4 +42,21 @@ COMPLETED: {
 }
 
 // email change 
+-> Ensure the user is logged in before they can change their email.
+-> User Requests Email Change
+-> They submit 
+-> Their new email
+
+-> Check the format of the new email
+-> Check if the email is already in use
+-> Send Verification to New Email
+-> Verifies token
+-> Updates user's email in DB
+
+
+End point tested: (23 April)
+-> singup Manual 
+-> login Manual
+-> Resend verification code 
+-> Verify verification code 
 
