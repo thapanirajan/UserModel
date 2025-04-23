@@ -13,8 +13,8 @@ const userDB = AppDataSource.getRepository(User);
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-        // Extract token from cookie or Authorization header
-        const token = req.cookies.token || (req.headers.authorization && req.headers.authorization.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
+        // Extract token from cookie or Authorization header  && req.headers.authorization.startsWith("Bearer ")
+        const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
 
         // Check if token exists
         if (!token) {

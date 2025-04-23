@@ -2,7 +2,6 @@
 import express from "express"
 import passport from 'passport';
 import { config } from "dotenv";
-import session from "express-session";
 import cookieParser from 'cookie-parser';
 
 

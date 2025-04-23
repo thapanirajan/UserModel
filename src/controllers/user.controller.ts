@@ -1,54 +1,76 @@
-import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
-import { IGetUserByIdParams, ILoginRequest, ISignupRequest, IUpdateUserParams, IVerificationToken, IVerifyToken, IUpdateUserBody, IResetPasswordRequest } from '../interface/user.interface';
-import { fetchAllUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, getUserByIdService, registerUser, resendVerificationToken, setResetTokenForUser, updatePassword, updateUserAfterVerification, updateUserService, } from "../service/user.service";
+import { fetchAllUser, createUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, getUserByIdService, updateUserService, saveUser } from '../service/user.service';
+import { ISignupRequest, ILoginRequest, IVerificationTokenRequest, IVerifyTokenRequest, IUserIdParams, IUpdateUserRequest, IResetPasswordRequest, IChangeEmailRequest, IVerifyEmailChangeRequest } from '../interface/user.interface';
+
+// Utility function to generate a 6-digit token
+const generateToken = (): string => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Utility function to hash a token
+const hashToken = async (token: string): Promise<string> => {
+    return await bcrypt.hash(token, 10);
+};
 
 // Get all users from the database
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
     try {
-        // Fetch all users using service layer
         const users = await fetchAllUser();
-
         res.status(200).json({
             success: true,
-            data: users
+            data: users,
         });
     } catch (error) {
-
         console.error('Get users error:', error);
         res.status(503).json({
             success: false,
-            message: "Service temporarily unavailable"
+            message: 'Service temporarily unavailable',
         });
     }
 };
 
 // Handle user registration
 export const signup = async (req: Request<{}, {}, ISignupRequest>, res: Response): Promise<void> => {
-    // Extract user details from request body
     const { username, email, password } = req.body;
     try {
-        // Register user using service layer, returns user and verification token
-        const { user, verificationToken } = await registerUser({ username, email, password });
+        const existingUser = await findUserByEmail(email);
+        if (existingUser) {
+            res.status(409).json({
+                success: false,
+                message: 'User already exists',
+            });
+            return;
+        }
 
-        // Send verification email to user
-        await sendVerificationEmail(email, "Email verification", verificationToken);
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationToken = generateToken();
+        const hashedToken = await hashToken(verificationToken);
+        const expire = new Date(Date.now() + 2 * 60 * 1000); // 2 mins
 
-        // Create JWT token for authentication
+        const user = await createUser({
+            username,
+            email,
+            password: hashedPassword,
+            verificationCode: hashedToken,
+            verificationCodeExpire: expire,
+        });
+
+        await sendVerificationEmail(email, 'Email verification', verificationToken);
+
         const token = jwt.sign(
             { id: user.id, email: user.email, username: user.username },
             process.env.JWT_SECRET as string,
-            { expiresIn: "2h" }
+            { expiresIn: '2h' }
         );
 
-        // Set JWT token in HTTP-only cookie
-        res.cookie("token", token, {
+        res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            maxAge: 2 * 60 * 60 * 1000 // (2 hours)
+            maxAge: 2 * 60 * 60 * 1000,
         });
 
         res.status(201).json({
@@ -56,314 +78,442 @@ export const signup = async (req: Request<{}, {}, ISignupRequest>, res: Response
             user: {
                 id: user.id,
                 username: user.username,
-                email: user.email
-            }
+                email: user.email,
+            },
+            token
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Signup error:', error);
         res.status(503).json({
             success: false,
-            message: "Registration service temporarily unavailable"
+            message: 'Registration service temporarily unavailable',
         });
     }
 };
 
 // Handle user login
 export const login = async (req: Request<{}, {}, ILoginRequest>, res: Response): Promise<void> => {
-    // Extract login credentials from request body
     const { email, password } = req.body;
     try {
-        // Attempt to find user with provided credentials
         const user = await findUserByEmailLogin(email);
-
-        // Check if user exists
         if (!user) {
             res.status(401).json({
                 success: false,
-                message: "User does not exists"
+                message: 'User does not exist',
             });
             return;
         }
 
-        // Verify password using bcrypt
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             res.status(401).json({
                 success: false,
-                message: "Invalid credentials"
+                message: 'Invalid credentials',
             });
             return;
         }
 
-        // Create JWT token for authenticated user
         const token = jwt.sign(
             { id: user.id, email: user.email },
             process.env.JWT_SECRET as string,
-            { expiresIn: "2h" }
+            { expiresIn: '2h' }
         );
 
-        // Set JWT token in HTTP-only cookie
-        res.cookie("token", token, {
+        res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            maxAge: 2 * 60 * 60 * 1000
+            maxAge: 2 * 60 * 60 * 1000,
         });
 
         res.status(200).json({
             success: true,
             user: {
                 id: user.id,
-                email: user.email
-            }
+                email: user.email,
+            },
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Login error:', error);
         res.status(503).json({
             success: false,
-            message: "Authentication service temporarily unavailable"
+            message: 'Authentication service temporarily unavailable',
         });
     }
 };
 
-// Resend verification token to user
-export const sendVerificationToken = async (req: Request<{}, {}, IVerificationToken>, res: Response): Promise<void> => {
-    // Extract email from request body
+// Resend verification token
+export const sendVerificationToken = async (req: Request<{}, {}, IVerificationTokenRequest>, res: Response): Promise<void> => {
     const { email } = req.body;
     try {
-        await resendVerificationToken(email);
+        const user = await findUserByEmail(email);
+        if (!user) {
+            res.status(404).json({ success: false, message: 'User not found' });
+            return;
+        }
+
+        const now = new Date();
+        if (user.resendBlockUntil && user.resendBlockUntil > now) {
+            const remainingSeconds = Math.ceil((user.resendBlockUntil.getTime() - now.getTime()) / 1000);
+            const remainingMinutes = Math.ceil(remainingSeconds / 60);
+            res.status(429).json({
+                success: false,
+                message: `Too many verification attempts. Please try again in ${remainingMinutes} minute(s).`,
+            });
+            return;
+        }
+
+        if (user.resendCount >= 3) {
+            user.resendCount = 0;
+            user.resendBlockUntil = null;
+        }
+
+        const verificationToken = generateToken();
+        const hashedToken = await hashToken(verificationToken);
+        const expire = new Date(Date.now() + 2 * 60 * 1000);
+
+        user.verificationCode = hashedToken;
+        user.verificationCodeExpire = expire;
+        user.resendCount += 1;
+        if (user.resendCount >= 3) {
+            user.resendBlockUntil = new Date(Date.now() + 10 * 60 * 1000);
+        }
+
+        await saveUser(user);
+        await sendVerificationEmail(user.email, 'Email verification', verificationToken);
+
         res.status(202).json({
             success: true,
-            message: "Verrification token processing"
-        })
-
+            message: 'Verification token processing',
+        });
     } catch (error) {
         console.error('Verification token error:', error);
-        if (error.message === "User not found") {
-            res.status(404).json({ success: false, message: "User not found" });
-        } else if (error.message.includes("Too many verification attempts")) {
-            res.status(429).json({ success: false, message: error.message });
-        } else {
-            res.status(503).json({
-                success: false,
-                message: "Verification service temporarily unavailable",
-            });
-        }
+        res.status(503).json({
+            success: false,
+            message: 'Verification service temporarily unavailable',
+        });
     }
 };
 
 // Verify email verification token
-export const verifyToken = async (req: Request<{}, {}, IVerifyToken>, res: Response): Promise<void> => {
-    // Extract token from request body
+export const verifyToken = async (req: Request<{}, {}, IVerifyTokenRequest>, res: Response): Promise<void> => {
     const { email, token } = req.body;
     try {
-        // Find user by verification token
         const user = await findUserByEmail(email);
         if (!user || !user.verificationCode || !user.verificationCodeExpire) {
             res.status(410).json({
                 success: false,
-                message: "Token no longer valid"
+                message: 'Token no longer valid',
             });
             return;
         }
 
-        // Check if token expired
         if (user.verificationCodeExpire < new Date()) {
             res.status(410).json({
                 success: false,
-                message: "Token expired"
-            })
-            return
+                message: 'Token expired',
+            });
+            return;
         }
-        // Compare verification code using bcrypt
+
         const isMatch = await bcrypt.compare(token, user.verificationCode);
         if (!isMatch) {
             res.status(400).json({
                 success: false,
-                message: "Invalid token"
+                message: 'Invalid token',
             });
             return;
         }
 
-        // Update user verification status
-        await updateUserAfterVerification(user);
+        user.verificationCode = null;
+        user.verificationCodeExpire = null;
+        user.resendCount = 0;
+        user.resendBlockUntil = null;
+        user.isVerified = true;
+        await saveUser(user);
 
-        // Return success response
         res.status(200).json({
             success: true,
-            message: "Email verified successfully"
+            message: 'Email verified successfully',
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Token verification error:', error);
         res.status(503).json({
             success: false,
-            message: "Verification service temporarily unavailable"
+            message: 'Verification service temporarily unavailable',
         });
     }
 };
 
 // Handle password reset request
-export const forgotPassword = async (req: Request<{}, {}, IVerificationToken>, res: Response): Promise<void> => {
-    // Extract email from request body
+export const forgotPassword = async (req: Request<{}, {}, IVerificationTokenRequest>, res: Response): Promise<void> => {
     const { email } = req.body;
     try {
-        // Validate email 
         if (!email) {
             res.status(422).json({
                 success: false,
-                message: "Email is required"
+                message: 'Email is required',
             });
             return;
         }
 
-        // Find user by email
         const user = await findUserByEmail(email);
         if (!user) {
             res.status(404).json({
                 success: false,
-                message: "User not found"
+                message: 'User not found',
             });
             return;
         }
 
-        // Generate and set reset token
-        const token = await setResetTokenForUser(user);
+        const token = generateToken();
+        const tokenExpire = new Date(Date.now() + 2 * 60 * 1000);
 
-        // Send password reset email // 
-        await sendVerificationEmail(user.email, "Reset Password", token);
+        user.resetToken = token;
+        user.resetTokenExpire = tokenExpire;
+        await saveUser(user);
 
-        // Return accepted response for async processing
+        await sendVerificationEmail(user.email, 'Reset Password', token);
+
         res.status(202).json({
             success: true,
-            message: "Password reset request processing",
-
+            message: 'Password reset request processing',
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Forgot password error:', error);
         res.status(503).json({
             success: false,
-            message: "Password reset service temporarily unavailable"
+            message: 'Password reset service temporarily unavailable',
         });
     }
 };
 
 // Handle password reset with token
 export const resetPassword = async (req: Request<{}, {}, IResetPasswordRequest>, res: Response): Promise<void> => {
-    // Extract password details and token from request body
     const { newPass, confirmPass, token } = req.body;
     try {
-        // Validate all required fields
         if (!newPass || !confirmPass || !token) {
             res.status(422).json({
                 success: false,
-                message: "All fields are required"
+                message: 'All fields are required',
             });
             return;
         }
 
-        // Verify passwords match
         if (newPass !== confirmPass) {
             res.status(422).json({
                 success: false,
-                message: "Passwords do not match"
+                message: 'Passwords do not match',
             });
             return;
         }
 
-        // Find user by reset token
         const user = await findUserByResetToken(token);
         if (!user) {
             res.status(410).json({
                 success: false,
-                message: "Reset token no longer valid"
+                message: 'Reset token no longer valid',
             });
             return;
         }
 
-        // Update user password
-        await updatePassword(user, newPass);
+        const hashedPassword = await bcrypt.hash(newPass, 10);
+        user.password = hashedPassword;
+        user.resetToken = null;
+        user.resetTokenExpire = null;
+        await saveUser(user);
 
-        // Return success response
         res.status(200).json({
             success: true,
-            message: "Password reset successfully"
+            message: 'Password reset successfully',
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Reset password error:', error);
         res.status(503).json({
             success: false,
-            message: "Password reset service temporarily unavailable"
+            message: 'Password reset service temporarily unavailable',
         });
     }
 };
 
 // Get user by ID
-export const getUserById = async (req: Request<IGetUserByIdParams>, res: Response): Promise<void> => {
+export const getUserById = async (req: Request<IUserIdParams>, res: Response): Promise<void> => {
     try {
-        // Extract user ID from request parameters
         const { id } = req.params;
-
-        // Fetch user using service layer
         const user = await getUserByIdService(id);
 
-        // Check if user exists
         if (!user) {
             res.status(404).json({
                 success: false,
-                message: "User not found"
+                message: 'User not found',
             });
             return;
         }
 
-        // Return success response with user data
         res.status(200).json({
             success: true,
-            data: user
+            data: user,
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Get user by ID error:', error);
         res.status(503).json({
             success: false,
-            message: "User service temporarily unavailable"
+            message: 'User service temporarily unavailable',
         });
     }
 };
 
 // Update user information
-export const updateUser = async (req: Request<IUpdateUserParams, {}, IUpdateUserBody>, res: Response): Promise<void> => {
+export const updateUser = async (req: Request<IUserIdParams, {}, IUpdateUserRequest>, res: Response): Promise<void> => {
     try {
-        // Extract user ID and update data from request
         const { id } = req.params;
         const updateData = req.body;
 
-        // Update user using service layer
         const user = await updateUserService(id, updateData);
         if (!user) {
             res.status(404).json({
                 success: false,
-                message: "User not found"
+                message: 'User not found',
             });
             return;
         }
 
-        // Return success response with updated user data
         res.status(200).json({
             success: true,
-            message: "User updated successfully",
-            data: user
+            message: 'User updated successfully',
+            data: user,
         });
     } catch (error) {
-        // Log error and return service unavailable response
         console.error('Update user error:', error);
         res.status(503).json({
             success: false,
-            message: "User update service temporarily unavailable"
+            message: 'User update service temporarily unavailable',
+        });
+    }
+};
+
+
+// Change email
+export const updateEmail = async (req: Request<{}, {}, IChangeEmailRequest>, res: Response): Promise<void> => {
+    try {
+        const { newEmail } = req.body;
+        const user = req.user;
+        console.log(user);
+
+        if (!user) {
+            res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
+            return;
+        }
+
+        if (!newEmail) {
+            res.status(422).json({ success: false, message: 'New email is required.' });
+            return;
+        }
+
+        const existingUser = await findUserByEmail(newEmail);
+        if (existingUser) {
+            res.status(409).json({ success: false, message: 'Email already in use.' });
+            return;
+        }
+
+        const verificationToken = generateToken();
+        const hashedToken = await hashToken(verificationToken);
+        const expire = new Date(Date.now() + 2 * 60 * 1000);
+
+        const emailChangeToken = jwt.sign(
+            { userId: user.id, newEmail },
+            process.env.JWT_SECRET || 'your_jwt_secret',
+            { expiresIn: '2m' }
+        );
+
+        user.verificationCode = hashedToken;
+        user.verificationCodeExpire = expire;
+        await saveUser(user);
+
+        await sendVerificationEmail(newEmail, 'Verify new email', verificationToken);
+
+        res.status(202).json({
+            success: true,
+            message: 'Verification email sent to new email address.',
+            emailChangeToken,
+        });
+    } catch (error) {
+        console.error('Change email error:', error);
+        res.status(503).json({
+            success: false,
+            message: 'Email change service temporarily unavailable.',
+        });
+    }
+};
+
+// Verify email change
+export const verifyEmailChangeController = async (req: Request<{}, {}, IVerifyEmailChangeRequest & { emailChangeToken: string }>, res: Response): Promise<void> => {
+    try {
+        const { token, emailChangeToken } = req.body;
+        const user = req.user;
+
+        if (!user) {
+            res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
+            return;
+        }
+
+        if (!token || !emailChangeToken) {
+            res.status(422).json({ success: false, message: 'Token and email change token are required.' });
+            return;
+        }
+
+        if (!user.verificationCode || !user.verificationCodeExpire) {
+            res.status(410).json({ success: false, message: 'No email change request found.' });
+            return;
+        }
+
+        if (user.verificationCodeExpire < new Date()) {
+            res.status(410).json({ success: false, message: 'Token expired.' });
+            return;
+        }
+
+        const isMatch = await bcrypt.compare(token, user.verificationCode);
+        if (!isMatch) {
+            res.status(400).json({ success: false, message: 'Invalid token.' });
+            return;
+        }
+
+        let decoded: { userId: number; newEmail: string };
+        try {
+            decoded = jwt.verify(emailChangeToken, process.env.JWT_SECRET || 'your_jwt_secret') as {
+                userId: number;
+                newEmail: string;
+            };
+        } catch (error) {
+            res.status(400).json({ success: false, message: 'Invalid or expired email change token.' });
+            return;
+        }
+
+        if (decoded.userId !== user.id) {
+            res.status(400).json({ success: false, message: 'Invalid token: User mismatch.' });
+            return;
+        }
+
+        const existingUser = await findUserByEmail(decoded.newEmail);
+        if (existingUser) {
+            res.status(409).json({ success: false, message: 'Email already in use.' });
+            return;
+        }
+
+        user.email = decoded.newEmail;
+        user.verificationCode = null;
+        user.verificationCodeExpire = null;
+        await saveUser(user);
+
+        res.status(200).json({
+            success: true,
+            message: 'Email updated successfully.',
+        });
+    } catch (error) {
+        console.error('Verify email change error:', error);
+        res.status(503).json({
+            success: false,
+            message: 'Email verification service temporarily unavailable.',
         });
     }
 };

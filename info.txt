@@ -55,8 +55,17 @@ COMPLETED: {
 
 
 End point tested: (23 April)
--> singup Manual 
--> login Manual
--> Resend verification code 
--> Verify verification code 
+-> Get all users ✅
+-> User signup ✅
+-> Resend verification token ✅ 
+-> Verify email ✅
+-> Login ✅
+-> Google OAuth ✅
+-> Facebook OAuth ✅
+-> Password reset email ✅
+-> Reset password ✅
+-> Get user by id ✅
+-> Update user ✅
+-> Update email 
+-> Verify email Change
 

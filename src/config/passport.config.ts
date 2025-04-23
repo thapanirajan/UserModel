@@ -114,4 +114,3 @@ passport.use(new FacebookStrategy(
         }
     }
 ))
-
