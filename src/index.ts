@@ -9,6 +9,7 @@ import AppDataSource from "./config/db.config";
 import userRouter from "./routes/user.routes";
 import "./config/passport.config"
 import { tokenCleanUp } from "./utils/cronjob.utils";
+import categoryRoutes from "./routes/category.routes";
 
 const app = express()
 
@@ -27,6 +28,7 @@ tokenCleanUp()
 
 // routes
 app.use("/api/auth", userRouter);
+app.use('/api/categories', categoryRoutes);
 
 const port = process.env.PORT || 5000
 
