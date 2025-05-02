@@ -1,13 +1,13 @@
 
 import cron from "node-cron";
-import { User } from "../models/user.model"
+import { User } from "../entities/user.entity"
 import { LessThan, Not } from "typeorm"
 import AppDataSource from "../config/db.config"
 
 const userDB = AppDataSource.getRepository(User);
 
 export const tokenCleanUp = () => {
-    cron.schedule("*/2 * * * *", async () => {
+    cron.schedule("*/2 * * * *", async () => { // every two minutes
         try {
             const expiredUsers = await userDB.find({
                 where: {

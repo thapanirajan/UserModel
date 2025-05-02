@@ -1,10 +1,17 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm"
+import { Product } from './product.entity';
 
 
 enum AuthProvider {
     LOCAL = "local",
     FACEBOOK = "facebook",
     GOOGLE = "google",
+}
+
+export enum UserRole {
+    ADMIN = "admin",
+    USER = "user",
+    VENDOR = " vendor"
 }
 
 @Entity()
@@ -17,6 +24,16 @@ export class User {
 
     @Column({ unique: true, nullable: true })
     email: string;
+
+    @Column({
+        type: "enum",
+        enum: UserRole,
+        default: UserRole.USER
+    })
+    role: UserRole;
+
+    @OneToMany(() => Product, (product) => product.vendor)
+    products: Product[]
 
     @Column({ nullable: true })
     googleId?: string

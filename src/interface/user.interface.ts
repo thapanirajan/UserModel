@@ -1,4 +1,4 @@
-import { User } from "../models/user.model";
+import { User, UserRole } from "../entities/user.entity";
 
 
 declare module 'express' {
@@ -10,6 +10,7 @@ export interface ISignupRequest {
     username: string;
     email: string;
     password: string;
+    role?: UserRole; // optional
 }
 
 export interface ILoginRequest {
@@ -34,6 +35,7 @@ export interface IUpdateUserRequest {
     id: number;
     username?: string;
     email?: string;
+    role?: UserRole;
 }
 
 export interface IResetPasswordRequest {

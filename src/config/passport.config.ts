@@ -4,7 +4,7 @@ import passport from "passport"
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { Strategy as JwtStrategy } from "passport-jwt";
-import { User } from "../models/user.model";
+import { User } from "../entities/user.entity";
 import AppDataSource from "./db.config";
 import jwt from "jsonwebtoken";
 

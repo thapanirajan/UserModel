@@ -2,10 +2,10 @@
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/user.model';
+import { User } from '../entities/user.entity';
 import AppDataSource from '../config/db.config';
 
-interface AuthRequest extends Request {
+export interface AuthRequest<P = {}, ResBody = {}, ReqBody = {}, ReqQuery = {}> extends Request<P, ResBody, ReqBody, ReqQuery> {
     user?: User;
 }
 

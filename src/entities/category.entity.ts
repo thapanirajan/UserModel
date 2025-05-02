@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
-import { Subcategory } from './subcategory.model';
-import { User } from './user.model';
+import { Subcategory } from './subcategory.entity';
+import { User } from './user.entity';
 
 @Entity()
 export class Category {

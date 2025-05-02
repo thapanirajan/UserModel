@@ -1,27 +1,22 @@
 import { Repository } from 'typeorm';
-import { CreateCategoryDTO } from '../dtos/CategoryDTO';
-import { Category } from '../models/category.model';
-import { Subcategory } from '../models/subcategory.model';
-import { User } from '../models/user.model';
+import { CreateCategoryDTO, UpdateCategoryDTO } from '../dtos/category.dto';
+import { Category } from '../entities/category.entity';
+import { User, UserRole } from '../entities/user.entity';
 import AppDataSource from '../config/db.config';
-import { CreateSubcategoryDTO } from '../dtos/SubCategoryDTO';
-
 
 export class CategoryService {
     private categoryRepository: Repository<Category>;
-    private subcategoryRepository: Repository<Subcategory>;
     private userRepository: Repository<User>;
 
     constructor() {
         this.categoryRepository = AppDataSource.getRepository(Category);
-        this.subcategoryRepository = AppDataSource.getRepository(Subcategory);
         this.userRepository = AppDataSource.getRepository(User);
     }
 
-    async createCategory(dto: CreateCategoryDTO): Promise<Category> {
-        const user = await this.userRepository.findOne({ where: { id: dto.createdBy } });
+    async createCategory(dto: CreateCategoryDTO, userId: number): Promise<Category> {
+        const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.ADMIN } });
         if (!user) {
-            throw new Error('User not found');
+            throw new Error('User not found or not an admin');
         }
 
         const category = this.categoryRepository.create({
@@ -42,24 +37,32 @@ export class CategoryService {
         });
     }
 
-    async createSubcategory(dto: CreateSubcategoryDTO): Promise<Subcategory> {
-        const category = await this.categoryRepository.findOne({
-            where: { id: dto.categoryId },
-        });
+    async updateCategory(id: number, dto: UpdateCategoryDTO, userId: number): Promise<Category | null> {
+        const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.ADMIN } });
+        if (!user) {
+            throw new Error('User not found or not an admin');
+        }
+
+        const category = await this.categoryRepository.findOne({ where: { id } });
         if (!category) {
             throw new Error('Category not found');
         }
 
-        const user = await this.userRepository.findOne({ where: { id: dto.createdBy } });
+        await this.categoryRepository.update(id, { name: dto.name });
+        return this.categoryRepository.findOne({ where: { id }, relations: ['subcategories', 'createdBy'] });
+    }
+
+    async deleteCategory(id: number, userId: number): Promise<void> {
+        const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.ADMIN } });
         if (!user) {
-            throw new Error('User not found');
+            throw new Error('User not found or not an admin');
         }
 
-        const subcategory = this.subcategoryRepository.create({
-            name: dto.name,
-            createdBy: user,
-            category,
-        });
-        return this.subcategoryRepository.save(subcategory);
+        const category = await this.categoryRepository.findOne({ where: { id } });
+        if (!category) {
+            throw new Error('Category not found');
+        }
+
+        await this.categoryRepository.delete(id);
     }
 }

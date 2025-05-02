@@ -1,9 +1,7 @@
 
 TODO:
--> Add middleware to check if the user is logged in, is the user owner of the account. 
 
 IN PROGRESS:
--> seperate db interaction code to service
 
 COMPLETED: {
     signup 
@@ -39,6 +37,9 @@ COMPLETED: {
     -> password reset
     -> email, profile management
     -> Routes for login with facebook and google
+
+    -> Add middleware to check if the user is logged in, is the user owner of the account. 
+    -> seperate db interaction code to service
 }
 
 // email change 
@@ -69,3 +70,16 @@ End point tested: (23 April)
 -> Update email 
 -> Verify email Change
 
+
+WHat I did: 
+
+// added dto layer -> a simple object that only includes the data you want to send or receive 
+// refine  category and subcategory 
+// converted functional based into class based (User)
+// added api route documentation on all routes
+// added custom ErrorApi 
+
+Task for tomorrow 
+-> will work on products dto, service, controller, routes 
+-> multiple image uplaod 
+-> individual image delete

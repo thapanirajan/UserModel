@@ -1,6 +1,6 @@
 import { MoreThan } from 'typeorm';
 import AppDataSource from '../config/db.config';
-import { User } from '../models/user.model';
+import { User } from '../entities/user.entity';
 
 const userDB = AppDataSource.getRepository(User);
 
