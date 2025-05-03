@@ -78,8 +78,10 @@ WHat I did:
 // converted functional based into class based (User)
 // added api route documentation on all routes
 // added custom ErrorApi 
+// Initalized product entity 
 
-Task for tomorrow 
 -> will work on products dto, service, controller, routes 
 -> multiple image uplaod 
 -> individual image delete
+
+Task for tomorrow 

@@ -12,6 +12,8 @@ export class CategoryController {
         this.categoryService = new CategoryService();
     }
 
+
+
     async createCategory(req: AuthRequest<{}, {}, ICreateCategoryRequest>, res: Response): Promise<void> {
         const dto = new CreateCategoryDTO();
         Object.assign(dto, req.body);
@@ -36,6 +38,8 @@ export class CategoryController {
         }
     }
 
+
+
     async getCategories(req: Request, res: Response): Promise<void> {
         try {
             const categories = await this.categoryService.getCategories();
@@ -44,6 +48,8 @@ export class CategoryController {
             res.status(500).json({ success: false, message: error.message });
         }
     }
+
+
 
     async getCategoryById(req: Request<ICategoryIdParams>, res: Response): Promise<void> {
         try {
@@ -64,6 +70,8 @@ export class CategoryController {
             res.status(500).json({ success: false, message: error.message });
         }
     }
+
+
 
     async updateCategory(req: AuthRequest<ICategoryIdParams, {}, IUpdateCategoryRequest>, res: Response): Promise<void> {
         const dto = new UpdateCategoryDTO();
@@ -100,6 +108,8 @@ export class CategoryController {
         }
     }
 
+
+
     async deleteCategory(req: AuthRequest<ICategoryIdParams>, res: Response): Promise<void> {
         try {
             const user = req.user;
@@ -120,4 +130,5 @@ export class CategoryController {
             res.status(500).json({ success: false, message: error.message });
         }
     }
+
 }

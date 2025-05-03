@@ -34,8 +34,7 @@ const validateDTO = (dtoClass: any) => async (req: Request, res: Response, next:
  * @desc Get all users (admin only)
  * @access Private (Admin)
  */
-
-// for to check the role first i need to add role in userentity.
+     
 // userRouter.get('/users', authMiddleware, isAdmin, controller.getUsers.bind(controller));
 userRouter.get('/users', authMiddleware, controller.getUsers.bind(controller));
 

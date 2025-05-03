@@ -10,6 +10,12 @@ import userRouter from "./routes/user.routes";
 import "./config/passport.config"
 import { tokenCleanUp } from "./utils/cronjob.utils";
 import categoryRoutes from "./routes/category.routes";
+import { join } from "path";
+import { mkdirSync } from "fs";
+
+// this creates folder "uploads" if it doesnot exists
+const uploadDir = join(__dirname, 'uploads');
+mkdirSync(uploadDir, { recursive: true });
 
 const app = express()
 
