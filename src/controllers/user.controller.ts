@@ -3,26 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
 import { fetchAllUser, createUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, getUserByIdService, updateUserService, saveUser } from '../service/user.service';
-import {
-    ISignupRequest,
-    ILoginRequest,
-    IVerificationTokenRequest,
-    IVerifyTokenRequest,
-    IResetPasswordRequest,
-    IChangeEmailRequest,
-    IVerifyEmailChangeRequest,
-    IUpdateUserRequest,
-} from '../interface/user.interface';
-import {
-    signupSchema,
-    loginSchema,
-    verificationTokenSchema,
-    verifyTokenSchema,
-    resetPasswordSchema,
-    changeEmailSchema,
-    verifyEmailChangeSchema,
-    updateUserSchema,
-} from '../utils/zod_validations/user.zod';
+import { ISignupRequest, ILoginRequest, IVerificationTokenRequest, IVerifyTokenRequest, IResetPasswordRequest, IChangeEmailRequest, IVerifyEmailChangeRequest, IUpdateUserRequest } from '../interface/user.interface';
+import { signupSchema, loginSchema, verificationTokenSchema, verifyTokenSchema, resetPasswordSchema, changeEmailSchema, verifyEmailChangeSchema, updateUserSchema } from '../utils/zod_validations/user.zod';
 import { APIError } from '../utils/ApiError.utils';
 import { UserRole } from '../entities/user.entity';
 import { AuthRequest } from '../middlewares/auth.middleware';
@@ -45,6 +27,14 @@ export class UserController {
         this.jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
     }
 
+
+    /**
+  * getUsers - Fetches all users from the database.
+  * 
+  * Returns:
+  * - A JSON response with a list of users if successful.
+  * - An error message if the fetching fails.
+  */
     async getUsers(req: Request, res: Response): Promise<void> {
         try {
             const users = await fetchAllUser();
@@ -54,6 +44,16 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * signup - Validates request body, checks if user already exists, hashes password, 
+   * creates user, and sends a verification email.
+   * 
+   * Returns:
+   * - A JSON response with a success message, user data, and JWT token if signup is successful.
+   * - An error message if validation fails or user already exists.
+   */
     async signup(req: AuthRequest<{}, {}, ISignupRequest>, res: Response): Promise<void> {
         try {
             const parsed = signupSchema.safeParse(req.body);
@@ -111,6 +111,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * login - Validates login credentials, compares password, and generates a JWT token.
+   * 
+   * Returns:
+   * - A JSON response with a success message, user data, and JWT token if login is successful.
+   * - An error message if login fails (e.g., incorrect credentials).
+   */
     async login(req: Request<{}, {}, ILoginRequest>, res: Response): Promise<void> {
         try {
             const parsed = loginSchema.safeParse(req.body);
@@ -156,6 +165,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * sendVerificationToken - Validates request body, checks resend limits, and sends a new verification token.
+   * 
+   * Returns:
+   * - A JSON response with a success message if the token is sent.
+   * - An error message if the resend limit is reached or an issue occurs.
+   */
     async sendVerificationToken(req: Request<{}, {}, IVerificationTokenRequest>, res: Response): Promise<void> {
         try {
             const parsed = verificationTokenSchema.safeParse(req.body);
@@ -209,6 +227,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * verifyToken - Verifies the email change token and updates the user's verification status.
+   * 
+   * Returns:
+   * - A JSON response with a success message if the email is verified.
+   * - An error message if the token is invalid or expired.
+   */
     async verifyToken(req: Request<{}, {}, IVerifyTokenRequest>, res: Response): Promise<void> {
         try {
             const parsed = verifyTokenSchema.safeParse(req.body);
@@ -252,6 +279,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * forgotPassword - Generates a password reset token and sends it to the user's email.
+   * 
+   * Returns:
+   * - A JSON response with a success message if the reset token is sent.
+   * - An error message if the user doesn't exist or there is an issue.
+   */
     async forgotPassword(req: Request<{}, {}, IVerificationTokenRequest>, res: Response): Promise<void> {
         try {
             const parsed = verificationTokenSchema.safeParse(req.body);
@@ -288,6 +324,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+  * resetPassword - Validates the reset token and updates the user's password.
+  * 
+  * Returns:
+  * - A JSON response with a success message if the password is reset.
+  * - An error message if the token is invalid or expired.
+  */
     async resetPassword(req: Request<{}, {}, IResetPasswordRequest>, res: Response): Promise<void> {
         try {
             const parsed = resetPasswordSchema.safeParse(req.body);
@@ -321,6 +366,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * getUserById - Fetches a user by ID from the database.
+   * 
+   * Returns:
+   * - A JSON response with the user data if found.
+   * - An error message if the user is not found.
+   */
     async getUserById(req: Request<{ id: string }>, res: Response): Promise<void> {
         try {
             const id = parseInt(req.params.id, 10);
@@ -346,6 +400,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * updateUser - Updates the user's profile information.
+   * 
+   * Returns:
+   * - A JSON response with the updated user details if successful.
+   * - An error message if the user is not found or the update fails.
+   */
     async updateUser(req: AuthRequest<{ id: string }, {}, IUpdateUserRequest>, res: Response): Promise<void> {
         try {
             const parsed = updateUserSchema.safeParse(req.body);
@@ -388,6 +451,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * updateEmail - Updates the user's email after validating and verifying the change.
+   * 
+   * Returns:
+   * - A JSON response with a success message and email change token.
+   * - An error message if email already exists or the process fails.
+   */
     async updateEmail(req: AuthRequest<{}, {}, IChangeEmailRequest>, res: Response): Promise<void> {
         try {
             const parsed = changeEmailSchema.safeParse(req.body);
@@ -437,6 +509,15 @@ export class UserController {
         }
     }
 
+
+
+    /**
+   * verifyEmailChange - Verifies the email change token and updates the user's email.
+   * 
+   * Returns:
+   * - A JSON response with a success message if email is changed successfully.
+   * - An error message if the token is invalid or expired.
+   */
     async verifyEmailChange(req: AuthRequest<{}, {}, IVerifyEmailChangeRequest & { emailChangeToken: string }>, res: Response): Promise<void> {
         try {
             const parsed = verifyEmailChangeSchema.safeParse(req.body);

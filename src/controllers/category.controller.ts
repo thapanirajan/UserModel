@@ -12,7 +12,14 @@ export class CategoryController {
     }
 
 
-
+    /**
+     * @desc Validates request body and creates a new category for the authenticated user.
+     *       Requires a non-empty 'name' field. User must be authenticated.
+     * @returns 201 Created with category data on success
+     *          400 Bad Request if validation fails
+     *          401 Unauthorized if user is not authenticated
+     *          500 Internal Server Error on server failure
+     */
     async createCategory(req: AuthRequest<{}, {}, ICreateCategoryRequest>, res: Response): Promise<void> {
         try {
             const parsed = createCategorySchema.safeParse(req.body);
@@ -37,6 +44,13 @@ export class CategoryController {
 
 
 
+
+    /**
+     * @desc Fetches and returns all categories available in the system.
+     *       No authentication required.
+     * @returns 200 OK with array of categories on success
+     *          500 Internal Server Error on failure
+     */
     async getCategories(req: Request, res: Response): Promise<void> {
         try {
             const categories = await this.categoryService.getCategories();
@@ -48,6 +62,15 @@ export class CategoryController {
 
 
 
+
+    /**
+    * @desc Retrieves a specific category by its ID.
+    *       Ensures the ID is a valid number.
+    * @returns 200 OK with category data if found
+    *          400 Bad Request if ID is invalid
+    *          404 Not Found if category does not exist
+    *          500 Internal Server Error on server error
+    */
     async getCategoryById(req: Request<ICategoryIdParams>, res: Response): Promise<void> {
         try {
             const id = req.params.id;
@@ -70,6 +93,17 @@ export class CategoryController {
 
 
 
+
+
+    /**
+     * @desc Validates input and updates a specific category by its ID for the authenticated user.
+     *       Requires user authentication and a valid ID. 'name' is optional but must be a non-empty string if provided.
+     * @returns 200 OK with updated category data on success
+     *          400 Bad Request if validation fails or ID is invalid
+     *          401 Unauthorized if user is not logged in
+     *          404 Not Found if category does not exist
+     *          500 Internal Server Error on server failure
+     */
     async updateCategory(req: AuthRequest<ICategoryIdParams, {}, IUpdateCategoryRequest>, res: Response): Promise<void> {
         try {
             const parsed = updateCategorySchema.safeParse(req.body);
@@ -104,6 +138,15 @@ export class CategoryController {
 
 
 
+
+    /**
+     * @desc Deletes a category by its ID, ensuring the authenticated user is the owner.
+     *       ID must be valid. User must be authenticated.
+     * @returns 204 No Content on successful deletion
+     *          400 Bad Request if ID is invalid
+     *          401 Unauthorized if user is not logged in
+     *          500 Internal Server Error on failure
+     */
     async deleteCategory(req: AuthRequest<ICategoryIdParams>, res: Response): Promise<void> {
         try {
             const user = req.user;

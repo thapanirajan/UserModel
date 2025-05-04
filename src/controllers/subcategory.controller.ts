@@ -12,6 +12,14 @@ export class SubcategoryController {
         this.subcategoryService = new SubcategoryService();
     }
 
+
+
+    /**
+     * @desc Creates a new subcategory under a specified category.
+     *       Validates the request body using Zod, ensures the user is authenticated,
+     *       and associates the new subcategory with the provided category ID and user ID.
+     * @return Returns the created subcategory object on success, or error details if validation or authentication fails.
+     */
     async createSubcategory(req: AuthRequest<{ categoryId: number }, {}, ICreateSubcategoryRequest>, res: Response): Promise<void> {
         try {
             const parsed = createSubCategorySchema.safeParse(req.body);
@@ -40,6 +48,14 @@ export class SubcategoryController {
         }
     }
 
+
+
+    /**
+    * @desc Retrieves all subcategories belonging to a given category.
+    *       The category ID is validated from the request parameters.
+    *       Useful for listing subcategories under a specific category for frontend display or filtering.
+    * @return Returns an array of subcategory objects or an error message if the category ID is invalid or an internal error occurs.
+    */
     async getSubcategories(req: Request<{ categoryId: number }>, res: Response): Promise<void> {
         try {
             const categoryId = req.params.categoryId;
@@ -55,6 +71,14 @@ export class SubcategoryController {
         }
     }
 
+
+
+    /**
+     * @desc Fetches a single subcategory by its ID and parent category ID.
+     *       Ensures both IDs are valid and checks for the existence of the subcategory.
+     *       Ideal for displaying detailed information about a specific subcategory.
+     * @return Returns the found subcategory object or a 404 error if not found, or validation errors for bad IDs.
+     */
     async getSubcategoryById(req: Request<ISubcategoryIdParams>, res: Response): Promise<void> {
         try {
             const { id, categoryId } = req.params;
@@ -75,6 +99,14 @@ export class SubcategoryController {
         }
     }
 
+
+
+    /**
+     * @desc Updates an existing subcategory’s information such as name or description.
+     *       Validates the request body using Zod and checks the user’s authentication and ownership.
+     *       Ensures subcategory and category IDs are correct before proceeding.
+     * @return Returns the updated subcategory object, or appropriate error messages for validation/auth/ownership issues.
+     */
     async updateSubcategory(req: AuthRequest<ISubcategoryIdParams, {}, IUpdateSubcategoryRequest>, res: Response): Promise<void> {
         try {
             const parsed = updateCategorySchema.safeParse(req.body);
@@ -108,6 +140,14 @@ export class SubcategoryController {
         }
     }
 
+
+
+    /**
+     * @desc Deletes a subcategory identified by its ID and the parent category ID.
+     *       Requires authentication and ensures the user is the owner of the subcategory.
+     *       Used to manage and clean up subcategory records when no longer needed.
+     * @return Returns a success message with 204 status code upon successful deletion, or appropriate errors otherwise.
+     */
     async deleteSubcategory(req: AuthRequest<ISubcategoryIdParams>, res: Response): Promise<void> {
         try {
             const user = req.user;
