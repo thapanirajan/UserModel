@@ -1,12 +1,8 @@
+import { CreateSubCategoryInput, UpdateSubCategoryInput } from "../utils/zod_validations/subcategory.zod";
 
-export interface ICreateSubcategoryRequest {
-    name: string;
-}
+export interface ICreateSubcategoryRequest extends CreateSubCategoryInput { }
 
-export interface IUpdateSubcategoryRequest {
-    name?: string;
-}
-
+export interface IUpdateSubcategoryRequest extends UpdateSubCategoryInput { }
 export interface ISubcategoryIdParams {
     categoryId: number;
     id: number;

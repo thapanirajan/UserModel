@@ -1,53 +1,30 @@
-import { User, UserRole } from "../entities/user.entity";
+import {
+    SignupInput,
+    LoginInput,
+    VerificationTokenInput,
+    VerifyTokenInput,
+    ResetPasswordInput,
+    ChangeEmailInput,
+    VerifyEmailChangeInput,
+    UpdateUserInput,
+} from '../utils/zod_validations/user.zod';
 
+export interface ISignupRequest extends SignupInput { }
 
-declare module 'express' {
-    interface Request {
-        user?: User;
-    }
-}
-export interface ISignupRequest {
-    username: string;
-    email: string;
-    password: string;
-    role?: UserRole; // optional
-}
+export interface ILoginRequest extends LoginInput { }
 
-export interface ILoginRequest {
-    email: string;
-    password: string;
-}
+export interface IVerificationTokenRequest extends VerificationTokenInput { }
 
-export interface IVerificationTokenRequest {
-    email: string;
-}
+export interface IVerifyTokenRequest extends VerifyTokenInput { }
 
-export interface IVerifyTokenRequest {
-    email: string;
-    token: string;
-}
+export interface IResetPasswordRequest extends ResetPasswordInput { }
+
+export interface IChangeEmailRequest extends ChangeEmailInput { }
+
+export interface IVerifyEmailChangeRequest extends VerifyEmailChangeInput { }
+
+export interface IUpdateUserRequest extends UpdateUserInput { }
 
 export interface IUserIdParams {
     id: number;
-}
-
-export interface IUpdateUserRequest {
-    id: number;
-    username?: string;
-    email?: string;
-    role?: UserRole;
-}
-
-export interface IResetPasswordRequest {
-    newPass: string;
-    confirmPass: string;
-    token: string;
-}
-
-export interface IChangeEmailRequest {
-    newEmail: string;
-}
-
-export interface IVerifyEmailChangeRequest {
-    token: string;
 }

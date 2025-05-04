@@ -3,12 +3,12 @@ import { validate } from 'class-validator';
 import { CategoryController } from '../controllers/category.controller';
 import { SubcategoryController } from '../controllers/subcategory.controller';
 import { ProductController } from '../controllers/product.controller';
-import { authMiddleware, isAdmin, isVendor, restrictToVendorOrAdmin } from '../middlewares/auth.middleware';
-import { CreateProductDTO, UpdateProductDTO } from '../dtos/product.dto';
-import { CreateCategoryDTO, UpdateCategoryDTO } from "../dtos/category.dto"
-import { CreateSubcategoryDTO, UpdateSubcategoryDTO } from "../dtos/subcategory.dto"
+import { authMiddleware, isAdmin, isVendor, restrictToVendorOrAdmin, validateZod } from '../middlewares/auth.middleware';
 import { multerOptions } from '../config/multer.config';
 import multer from 'multer';
+import { createCategorySchema, updateCategorySchema } from '../utils/zod_validations/category.zod';
+import { createSubCategorySchema, updateSubcategorySchema } from '../utils/zod_validations/subcategory.zod';
+import { createProductSchema, updateProductSchema } from '../utils/zod_validations/product.zod';
 
 const router = Router();
 const categoryController = new CategoryController();
@@ -16,23 +16,14 @@ const subcategoryController = new SubcategoryController();
 const productController = new ProductController();
 const upload = multer(multerOptions);
 
-const validateDTO = (dtoClass: any) => async (req: Request, res: Response, next: Function) => {
-    const dto = new dtoClass();
-    Object.assign(dto, req.body);
-    const errors = await validate(dto);
-    if (errors.length > 0) {
-        res.status(400).json({ success: false, errors });
-        return;
-    }
-    next();
-};
+
 
 /**
  * @route POST /api/categories
  * @desc Create a new category
  * @access Private (Admin)
  */
-router.post('/', authMiddleware, isAdmin, validateDTO(CreateCategoryDTO), categoryController.createCategory.bind(categoryController));
+router.post('/', authMiddleware, isAdmin, validateZod(createCategorySchema), categoryController.createCategory.bind(categoryController));
 
 /**
  * @route GET /api/categories
@@ -53,7 +44,7 @@ router.get('/:id', categoryController.getCategoryById.bind(categoryController));
  * @desc Update a category
  * @access Private (Admin)
  */
-router.put('/:id', authMiddleware, isAdmin, validateDTO(UpdateCategoryDTO), categoryController.updateCategory.bind(categoryController));
+router.put('/:id', authMiddleware, isAdmin, validateZod(updateCategorySchema), categoryController.updateCategory.bind(categoryController));
 
 /**
  * @route DELETE /api/categories/:id
@@ -67,7 +58,7 @@ router.delete('/:id', authMiddleware, isAdmin, categoryController.deleteCategory
  * @desc Create a new subcategory under a category
  * @access Private (Admin)
  */
-router.post('/:categoryId/subcategories', authMiddleware, isAdmin, validateDTO(CreateSubcategoryDTO), subcategoryController.createSubcategory.bind(subcategoryController));
+router.post('/:categoryId/subcategories', authMiddleware, isAdmin, validateZod(createSubCategorySchema), subcategoryController.createSubcategory.bind(subcategoryController));
 
 /**
  * @route GET /api/categories/:categoryId/subcategories
@@ -88,7 +79,7 @@ router.get('/:categoryId/subcategories/:id', subcategoryController.getSubcategor
  * @desc Update a subcategory under a category
  * @access Private (Admin)
  */
-router.put('/:categoryId/subcategories/:id', authMiddleware, isAdmin, validateDTO(UpdateSubcategoryDTO), subcategoryController.updateSubcategory.bind(subcategoryController));
+router.put('/:categoryId/subcategories/:id', authMiddleware, isAdmin, validateZod(updateSubcategorySchema), subcategoryController.updateSubcategory.bind(subcategoryController));
 
 /**
  * @route DELETE /api/categories/:categoryId/subcategories/:id
@@ -102,7 +93,7 @@ router.delete('/:categoryId/subcategories/:id', authMiddleware, isAdmin, subcate
  * @desc Create a new product under a subcategory
  * @access Private (Vendor)
  */
-router.post('/:categoryId/subcategories/:subcategoryId/products', authMiddleware, isVendor, upload.array('images', 5), validateDTO(CreateProductDTO), productController.createProduct.bind(productController));
+router.post('/:categoryId/subcategories/:subcategoryId/products', authMiddleware, isVendor, upload.array('images', 5), validateZod(createProductSchema), productController.createProduct.bind(productController));
 
 /**
  * @route GET /api/categories/:categoryId/subcategories/:subcategoryId/products
@@ -123,7 +114,7 @@ router.get('/:categoryId/subcategories/:subcategoryId/products/:id', productCont
  * @desc Update a product under a subcategory
  * @access Private (Vendor)
  */
-router.put('/:categoryId/subcategories/:subcategoryId/products/:id', authMiddleware, isVendor, upload.array('images', 5), validateDTO(UpdateProductDTO), productController.updateProduct.bind(productController));
+router.put('/:categoryId/subcategories/:subcategoryId/products/:id', authMiddleware, isVendor, upload.array('images', 5), validateZod(updateProductSchema), productController.updateProduct.bind(productController));
 
 /**
  * @route DELETE /api/categories/:categoryId/subcategories/:subcategoryId/products/:id

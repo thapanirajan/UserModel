@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
-import { validate } from 'class-validator';
 import { SubcategoryService } from '../service/subcategory.service';
-import { CreateSubcategoryDTO, UpdateSubcategoryDTO } from '../dtos/subcategory.dto';
 import { ICreateSubcategoryRequest, IUpdateSubcategoryRequest, ISubcategoryIdParams } from '../interface/subcategory.interface';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { createSubCategorySchema } from '../utils/zod_validations/subcategory.zod';
+import { updateCategorySchema } from '../utils/zod_validations/category.zod';
 
 export class SubcategoryController {
     private subcategoryService: SubcategoryService;
@@ -13,16 +13,14 @@ export class SubcategoryController {
     }
 
     async createSubcategory(req: AuthRequest<{ categoryId: number }, {}, ICreateSubcategoryRequest>, res: Response): Promise<void> {
-        const dto = new CreateSubcategoryDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
         try {
+            const parsed = createSubCategorySchema.safeParse(req.body);
+
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
             const user = req.user;
             if (!user) {
                 res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -35,7 +33,7 @@ export class SubcategoryController {
                 return;
             }
 
-            const subcategory = await this.subcategoryService.createSubcategory(dto, categoryId, user.id);
+            const subcategory = await this.subcategoryService.createSubcategory(parsed.data, categoryId, user.id);
             res.status(201).json({ success: true, data: subcategory });
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
@@ -78,16 +76,14 @@ export class SubcategoryController {
     }
 
     async updateSubcategory(req: AuthRequest<ISubcategoryIdParams, {}, IUpdateSubcategoryRequest>, res: Response): Promise<void> {
-        const dto = new UpdateSubcategoryDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
         try {
+            const parsed = updateCategorySchema.safeParse(req.body);
+
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
             const user = req.user;
             if (!user) {
                 res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -100,7 +96,7 @@ export class SubcategoryController {
                 return;
             }
 
-            const subcategory = await this.subcategoryService.updateSubcategory(id, dto, categoryId, user.id);
+            const subcategory = await this.subcategoryService.updateSubcategory(id, parsed.data, categoryId, user.id);
             if (!subcategory) {
                 res.status(404).json({ success: false, message: 'Subcategory not found' });
                 return;

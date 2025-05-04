@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { validate } from 'class-validator';
 import { CategoryService } from '../service/category.service';
-import { CreateCategoryDTO, UpdateCategoryDTO } from '../dtos/category.dto';
 import { ICreateCategoryRequest, IUpdateCategoryRequest, ICategoryIdParams } from '../interface/category.interface';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { createCategorySchema, updateCategorySchema } from '../utils/zod_validations/category.zod';
 
 export class CategoryController {
     private categoryService: CategoryService;
@@ -15,23 +14,21 @@ export class CategoryController {
 
 
     async createCategory(req: AuthRequest<{}, {}, ICreateCategoryRequest>, res: Response): Promise<void> {
-        const dto = new CreateCategoryDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
         try {
+            const parsed = createCategorySchema.safeParse(req.body);
+
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
             const user = req.user;
             if (!user) {
                 res.status(401).json({ success: false, message: 'Unauthorized' });
                 return;
             }
 
-            const category = await this.categoryService.createCategory(dto, user.id);
+            const category = await this.categoryService.createCategory(parsed.data, user.id);
             res.status(201).json({ success: true, data: category });
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
@@ -74,16 +71,13 @@ export class CategoryController {
 
 
     async updateCategory(req: AuthRequest<ICategoryIdParams, {}, IUpdateCategoryRequest>, res: Response): Promise<void> {
-        const dto = new UpdateCategoryDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
         try {
+            const parsed = updateCategorySchema.safeParse(req.body);
+
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
             const user = req.user;
             if (!user) {
                 res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -96,7 +90,7 @@ export class CategoryController {
                 return;
             }
 
-            const category = await this.categoryService.updateCategory(id, dto, user.id);
+            const category = await this.categoryService.updateCategory(id, parsed.data, user.id);
             if (!category) {
                 res.status(404).json({ success: false, message: 'Category not found' });
                 return;

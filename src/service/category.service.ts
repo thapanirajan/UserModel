@@ -1,8 +1,8 @@
 import { Repository } from 'typeorm';
-import { CreateCategoryDTO, UpdateCategoryDTO } from '../dtos/category.dto';
 import { Category } from '../entities/category.entity';
 import { User, UserRole } from '../entities/user.entity';
 import AppDataSource from '../config/db.config';
+import { CreateCategoryInput, UpdateCategoryInput } from '../utils/zod_validations/category.zod';
 
 export class CategoryService {
     private categoryRepository: Repository<Category>;
@@ -13,7 +13,7 @@ export class CategoryService {
         this.userRepository = AppDataSource.getRepository(User);
     }
 
-    async createCategory(dto: CreateCategoryDTO, userId: number): Promise<Category> {
+    async createCategory(dto: CreateCategoryInput, userId: number): Promise<Category> {
         const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.ADMIN } });
         if (!user) {
             throw new Error('User not found or not an admin');
@@ -37,7 +37,7 @@ export class CategoryService {
         });
     }
 
-    async updateCategory(id: number, dto: UpdateCategoryDTO, userId: number): Promise<Category | null> {
+    async updateCategory(id: number, dto: UpdateCategoryInput, userId: number): Promise<Category | null> {
         const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.ADMIN } });
         if (!user) {
             throw new Error('User not found or not an admin');

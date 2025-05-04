@@ -1,5 +1,4 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { string } from "zod";
 import { Subcategory } from "./subcategory.entity";
 import { User } from "./user.entity";
 

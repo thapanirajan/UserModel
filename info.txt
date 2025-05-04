@@ -85,3 +85,8 @@ WHat I did:
 -> individual image delete
 
 Task for tomorrow 
+
+DSU:
+-> implemented product entity, dto layer, service layer, controller
+-> Completed multiple image upload with multer and cloudinary 
+-> Implemented individual image deletion for user (admin || vendors) only.

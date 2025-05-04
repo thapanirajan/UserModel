@@ -1,10 +1,10 @@
 import { Repository } from 'typeorm';
-import { CreateProductDTO, UpdateProductDTO } from '../dtos/product.dto';
 import { Product } from '../entities/product.entity';
 import { Subcategory } from '../entities/subcategory.entity';
 import { User, UserRole } from '../entities/user.entity';
 import AppDataSource from '../config/db.config';
 import { v2 as cloudinary } from 'cloudinary';
+import { CreateProductInput, UpdateProductInput } from '../utils/zod_validations/product.zod';
 
 export class ProductService {
     private productRepository: Repository<Product>;
@@ -25,7 +25,7 @@ export class ProductService {
 
 
 
-    async createProduct(dto: CreateProductDTO, subcategoryId: number, userId: number, files: Express.Multer.File[]): Promise<Product> {
+    async createProduct(dto: CreateProductInput, subcategoryId: number, userId: number, files: Express.Multer.File[]): Promise<Product> {
         const subcategory = await this.subcategoryRepository.findOne({ where: { id: subcategoryId } });
         if (!subcategory) {
             throw new Error('Subcategory not found');
@@ -83,7 +83,7 @@ export class ProductService {
 
 
 
-    async updateProduct(id: number, dto: UpdateProductDTO, subcategoryId: number, userId: number, files: Express.Multer.File[]): Promise<Product | null> {
+    async updateProduct(id: number, dto: UpdateProductInput, subcategoryId: number, userId: number, files: Express.Multer.File[]): Promise<Product | null> {
         const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.VENDOR } });
         if (!user) {
             throw new Error('User not found or not a vendor');

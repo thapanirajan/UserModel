@@ -5,10 +5,12 @@ import jwt from 'jsonwebtoken';
 import { User, UserRole } from '../entities/user.entity';
 import AppDataSource from '../config/db.config';
 import { Product } from '../entities/product.entity';
+import { ZodSchema } from 'zod';
 
 export interface AuthRequest<P = {}, ResBody = {}, ReqBody = {}, ReqQuery = {}> extends Request<P, ResBody, ReqBody, ReqQuery> {
     user?: User;
 }
+
 
 
 // Initialize user repository
@@ -106,4 +108,16 @@ export const restrictToVendorOrAdmin = async (req: AuthRequest<{ id: number }>, 
     }
 
     next();
+};
+
+
+export const validateZod = (schema: ZodSchema) => {
+    return async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            await schema.parseAsync(req.body);
+            next();
+        } catch (error) {
+            res.status(400).json({ success: false, errors: error });
+        }
+    };
 };

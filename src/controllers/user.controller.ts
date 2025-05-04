@@ -1,12 +1,31 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { validate } from 'class-validator';
 import { sendVerificationEmail } from '../utils/nodemailer.utils';
 import { fetchAllUser, createUser, findUserByEmail, findUserByEmailLogin, findUserByResetToken, getUserByIdService, updateUserService, saveUser } from '../service/user.service';
-import { ISignupRequest, ILoginRequest, IVerificationTokenRequest, IVerifyTokenRequest, IResetPasswordRequest, IChangeEmailRequest, IVerifyEmailChangeRequest, IUpdateUserRequest } from '../interface/user.interface';
-import { SignupDTO, LoginDTO, VerificationTokenDTO, VerifyTokenDTO, ResetPasswordDTO, ChangeEmailDTO, VerifyEmailChangeDTO } from '../dtos/user.dto';
+import {
+    ISignupRequest,
+    ILoginRequest,
+    IVerificationTokenRequest,
+    IVerifyTokenRequest,
+    IResetPasswordRequest,
+    IChangeEmailRequest,
+    IVerifyEmailChangeRequest,
+    IUpdateUserRequest,
+} from '../interface/user.interface';
+import {
+    signupSchema,
+    loginSchema,
+    verificationTokenSchema,
+    verifyTokenSchema,
+    resetPasswordSchema,
+    changeEmailSchema,
+    verifyEmailChangeSchema,
+    updateUserSchema,
+} from '../utils/zod_validations/user.zod';
 import { APIError } from '../utils/ApiError.utils';
+import { UserRole } from '../entities/user.entity';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 // Utility functions for token management
 class TokenUtils {
@@ -35,19 +54,15 @@ export class UserController {
         }
     }
 
-    async signup(req: Request<{}, {}, ISignupRequest>, res: Response): Promise<void> {
-        const dto = new SignupDTO();
-        Object.assign(dto, req.body); // username, email, password
-
-        // Validates given object.
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { username, email, password, role } = dto;
+    async signup(req: AuthRequest<{}, {}, ISignupRequest>, res: Response): Promise<void> {
         try {
+            const parsed = signupSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { username, email, password, role } = parsed.data;
             const existingUser = await findUserByEmail(email);
             if (existingUser) {
                 throw new APIError(409, 'User already exists');
@@ -64,13 +79,13 @@ export class UserController {
                 password: hashedPassword,
                 verificationCode: hashedToken,
                 verificationCodeExpire: expire,
-                role: role
+                role: role,
             });
 
             await sendVerificationEmail(email, 'Email Verification', verificationToken);
 
             const token = jwt.sign(
-                { id: user.id, email: user.email, username: user.username },
+                { id: user.id, email: user.email, username: user.username, role: user.role },
                 this.jwtSecret,
                 { expiresIn: '2h' }
             );
@@ -84,7 +99,7 @@ export class UserController {
 
             res.status(201).json({
                 success: true,
-                user: { id: user.id, username: user.username, email: user.email },
+                user: { id: user.id, username: user.username, email: user.email, role: user.role },
                 token,
             });
         } catch (error) {
@@ -97,17 +112,14 @@ export class UserController {
     }
 
     async login(req: Request<{}, {}, ILoginRequest>, res: Response): Promise<void> {
-        const dto = new LoginDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { email, password } = dto;
         try {
+            const parsed = loginSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { email, password } = parsed.data;
             const user = await findUserByEmailLogin(email);
             if (!user) {
                 throw new APIError(401, 'User does not exist');
@@ -119,7 +131,7 @@ export class UserController {
             }
 
             const token = jwt.sign(
-                { id: user.id, email: user.email },
+                { id: user.id, email: user.email, role: user.role },
                 this.jwtSecret,
                 { expiresIn: '2h' }
             );
@@ -133,7 +145,7 @@ export class UserController {
 
             res.status(200).json({
                 success: true,
-                user: { id: user.id, email: user.email },
+                user: { id: user.id, email: user.email, role: user.role },
             });
         } catch (error) {
             if (error instanceof APIError) {
@@ -145,17 +157,14 @@ export class UserController {
     }
 
     async sendVerificationToken(req: Request<{}, {}, IVerificationTokenRequest>, res: Response): Promise<void> {
-        const dto = new VerificationTokenDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { email } = dto;
         try {
+            const parsed = verificationTokenSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { email } = parsed.data;
             const user = await findUserByEmail(email);
             if (!user) {
                 throw new APIError(404, 'User not found');
@@ -201,17 +210,14 @@ export class UserController {
     }
 
     async verifyToken(req: Request<{}, {}, IVerifyTokenRequest>, res: Response): Promise<void> {
-        const dto = new VerifyTokenDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { email, token } = dto;
         try {
+            const parsed = verifyTokenSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { email, token } = parsed.data;
             const user = await findUserByEmail(email);
             if (!user || !user.verificationCode || !user.verificationCodeExpire) {
                 throw new APIError(410, 'Token no longer valid');
@@ -247,17 +253,14 @@ export class UserController {
     }
 
     async forgotPassword(req: Request<{}, {}, IVerificationTokenRequest>, res: Response): Promise<void> {
-        const dto = new VerificationTokenDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { email } = dto;
         try {
+            const parsed = verificationTokenSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { email } = parsed.data;
             const user = await findUserByEmail(email);
             if (!user) {
                 throw new APIError(404, 'User not found');
@@ -286,21 +289,14 @@ export class UserController {
     }
 
     async resetPassword(req: Request<{}, {}, IResetPasswordRequest>, res: Response): Promise<void> {
-        const dto = new ResetPasswordDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { newPass, confirmPass, token } = dto;
         try {
-            if (newPass !== confirmPass) {
-                throw new APIError(422, 'Passwords do not match');
+            const parsed = resetPasswordSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
             }
 
+            const { newPass, token } = parsed.data;
             const user = await findUserByResetToken(token);
             if (!user) {
                 throw new APIError(410, 'Reset token no longer valid');
@@ -350,19 +346,29 @@ export class UserController {
         }
     }
 
-    async updateUser(req: Request<{ id: string }, {}, IUpdateUserRequest>, res: Response): Promise<void> {
+    async updateUser(req: AuthRequest<{ id: string }, {}, IUpdateUserRequest>, res: Response): Promise<void> {
         try {
+            const parsed = updateUserSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
             const id = parseInt(req.params.id, 10);
             if (isNaN(id)) {
                 throw new APIError(400, 'Invalid user ID');
             }
 
+            if (parsed.data.id !== id) {
+                throw new APIError(400, 'ID in body must match URL parameter');
+            }
+
             // Restrict role changes to admins
-            if (req.body.role && req.user?.role !== 'admin') {
+            if (parsed.data.role && req.user?.role !== UserRole.ADMIN) {
                 throw new APIError(403, 'Only admins can change roles');
             }
 
-            const updateData = req.body;
+            const updateData = parsed.data;
             const user = await updateUserService(id, updateData);
             if (!user) {
                 throw new APIError(404, 'User not found');
@@ -382,19 +388,15 @@ export class UserController {
         }
     }
 
-    
-    async updateEmail(req: Request<{}, {}, IChangeEmailRequest>, res: Response): Promise<void> {
-        const dto = new ChangeEmailDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { newEmail } = dto;
+    async updateEmail(req: AuthRequest<{}, {}, IChangeEmailRequest>, res: Response): Promise<void> {
         try {
+            const parsed = changeEmailSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { newEmail } = parsed.data;
             const user = req.user;
             if (!user) {
                 throw new APIError(401, 'Unauthorized. Please log in.');
@@ -410,7 +412,7 @@ export class UserController {
             const expire = new Date(Date.now() + 15 * 60 * 1000);
 
             const emailChangeToken = jwt.sign(
-                { userId: user.id, newEmail },
+                { userId: user.id, newEmail, role: user.role },
                 this.jwtSecret,
                 { expiresIn: '15m' }
             );
@@ -435,18 +437,15 @@ export class UserController {
         }
     }
 
-    async verifyEmailChange(req: Request<{}, {}, IVerifyEmailChangeRequest & { emailChangeToken: string }>, res: Response): Promise<void> {
-        const dto = new VerifyEmailChangeDTO();
-        Object.assign(dto, req.body);
-
-        const errors = await validate(dto);
-        if (errors.length > 0) {
-            res.status(400).json({ success: false, errors });
-            return;
-        }
-
-        const { token, emailChangeToken } = dto;
+    async verifyEmailChange(req: AuthRequest<{}, {}, IVerifyEmailChangeRequest & { emailChangeToken: string }>, res: Response): Promise<void> {
         try {
+            const parsed = verifyEmailChangeSchema.safeParse(req.body);
+            if (!parsed.success) {
+                res.status(400).json({ success: false, errors: parsed.error.errors });
+                return;
+            }
+
+            const { token, emailChangeToken } = parsed.data;
             const user = req.user;
             if (!user) {
                 throw new APIError(401, 'Unauthorized. Please log in.');
@@ -465,11 +464,12 @@ export class UserController {
                 throw new APIError(400, 'Invalid token.');
             }
 
-            let decoded: { userId: number; newEmail: string };
+            let decoded: { userId: number; newEmail: string; role: UserRole };
             try {
                 decoded = jwt.verify(emailChangeToken, this.jwtSecret) as {
                     userId: number;
                     newEmail: string;
+                    role: UserRole;
                 };
             } catch (error) {
                 throw new APIError(400, 'Invalid or expired email change token.');

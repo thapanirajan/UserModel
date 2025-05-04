@@ -1,9 +1,9 @@
 import { Repository } from 'typeorm';
-import { CreateSubcategoryDTO, UpdateSubcategoryDTO } from '../dtos/subcategory.dto';
 import { Subcategory } from '../entities/subcategory.entity';
 import { Category } from '../entities/category.entity';
 import { User, UserRole } from '../entities/user.entity';
 import AppDataSource from '../config/db.config';
+import { CreateSubCategoryInput, UpdateSubCategoryInput } from '../utils/zod_validations/subcategory.zod';
 
 export class SubcategoryService {
     private subcategoryRepository: Repository<Subcategory>;
@@ -16,7 +16,7 @@ export class SubcategoryService {
         this.userRepository = AppDataSource.getRepository(User);
     }
 
-    async createSubcategory(dto: CreateSubcategoryDTO, categoryId: number, userId: number): Promise<Subcategory> {
+    async createSubcategory(dto: CreateSubCategoryInput, categoryId: number, userId: number): Promise<Subcategory> {
         const category = await this.categoryRepository.findOne({ where: { id: categoryId } });
         if (!category) {
             throw new Error('Category not found');
@@ -49,7 +49,7 @@ export class SubcategoryService {
         });
     }
 
-    async updateSubcategory(id: number, dto: UpdateSubcategoryDTO, categoryId: number, userId: number): Promise<Subcategory | null> {
+    async updateSubcategory(id: number, dto: UpdateSubCategoryInput, categoryId: number, userId: number): Promise<Subcategory | null> {
         const user = await this.userRepository.findOne({ where: { id: userId, role: UserRole.ADMIN } });
         if (!user) {
             throw new Error('User not found or not an admin');
